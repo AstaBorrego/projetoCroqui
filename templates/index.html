@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Sistema Croqui</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="center-body">
+    <div class="login-card">
+        <h2>Acesso ao Sistema</h2>
+        <form id="loginForm">
+            <input type="email" id="email" placeholder="Seu e-mail" required>
+            <input type="password" id="password" placeholder="Sua senha" required>
+            <select id="userRole">
+                <option value="campo">Colaborador em Campo</option>
+                <option value="admin">Administrador</option>
+            </select>
+            <button type="submit">Entrar</button>
+        </form>
+        <p id="errorMsg" class="error"></p>
+    </div>
+
+    <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='login.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='canvas.js') }}"></script>
+</body>
+</html>
