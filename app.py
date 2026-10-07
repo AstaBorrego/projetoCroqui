@@ -11,7 +11,7 @@ def index():
 def dashboard():
     return render_template('dashboard.html')
 
-# 🚀 ROTA EXPLÍCITA PARA SERVIR FICHEIROS ESTÁTICOS NO VERCEL
+# Rota explícita para entregar os ficheiros da pasta static no Vercel
 @app.route('/static/<path:filename>')
 def serve_static(filename):
     return send_from_directory(app.static_folder, filename)
