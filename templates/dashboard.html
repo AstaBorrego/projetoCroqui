@@ -1,90 +1,90 @@
+<!-- Declaração do tipo de documento HTML5 -->
 <!DOCTYPE html>
+<!-- Definição da linguagem da página como Português do Brasil -->
 <html lang="pt-BR">
 <head>
+    <!-- Configuração de codificação de caracteres UTF-8 -->
     <meta charset="UTF-8">
+    <!-- Meta tag de viewport para ajuste em dispositivos móveis e tablets -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Sistema de Croqui</title>
+    <!-- Título exibido na aba do navegador -->
+    <title>Painel de Croqui</title>
+    <!-- Ícone exibido na aba do navegador -->
+    <link rel="icon" href="{{ url_for('static', filename='image/logo_iar.jpeg') }}" type="image/jpeg">
+    <!-- Folha de estilo externa CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <!-- Barra Superior -->
-    <header class="bar bg-dark">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>Painel de Croqui (<span id="userRoleDisplay">A carregar...</span>)</h2>
-            <div>
-                <span id="userEmailDisplay" style="margin-right: 15px; font-weight: bold;"></span>
-                <button onclick="window.fazerLogout()" class="btn-danger" style="padding: 5px 10px; cursor: pointer;">Sair</button>
-            </div>
+    <!-- Barra superior do sistema -->
+    <div class="bar bg-dark">
+        <h2>Painel de Croqui (Administrador)</h2>
+        <div class="user-info">
+            <span id="userDisplay"></span>
+            <button onclick="window.fazerLogout()" class="btn-danger">Sair</button>
         </div>
-    </header>
-
-    <!-- Abas dos Colaboradores (Exclusivo do Administrador) -->
-    <div id="adminTabsContainer" class="tabs-container" style="display: none;">
-        <span style="font-weight: bold; align-self: center; margin-right: 10px;">Colaboradores:</span>
-        <div id="tabsHeader" style="display: flex; gap: 8px;"></div>
     </div>
 
-    <!-- Container Principal com Layout de 3 Colunas -->
+    <!-- Container das abas dos colaboradores conectados -->
+    <div id="tabsContainer" class="tabs-container"></div>
+
+    <!-- Workspace principal dividida em colunas -->
     <div class="workspace-container">
-        
-        <!-- 🗨️ LADO ESQUERDO: Chat em Tempo Real -->
+        <!-- Coluna da esquerda: Chat em Tempo Real -->
         <div class="sidebar-left">
             <h3>Chat em Tempo Real</h3>
-            <div id="chatMessages" class="chat-box"></div>
-            <div class="chat-input">
-                <input type="text" id="msgInput" placeholder="Sua mensagem...">
-                <button id="sendBtn">Enviar</button>
-            </div>
+            <div id="chatBox" class="chat-box"></div>
+            <form id="chatForm" class="chat-input">
+                <input type="text" id="chatInput" placeholder="Sua mensagem..." required>
+                <button type="submit">Enviar</button>
+            </form>
         </div>
 
-        <!-- 🖼️ CENTRO: Área do Croqui Centralizada -->
+        <!-- Coluna central: Área do Canvas e Botões de Ação -->
         <div class="editor-area-center">
-            <h3>Croqui: <span id="currentCroquiTitle">Meu Croqui</span></h3>
+            <h3>Croqui: Meu Croqui</h3>
             <div class="canvas-wrapper">
-                <canvas id="croquiCanvas" width="650" height="480"></canvas>
+                <canvas id="croquiCanvas" width="800" height="600"></canvas>
             </div>
+            
+            <!-- ÁREA DOS BOTÕES DE AÇÃO DO CANVAS -->
             <div class="actions">
-                <button type="button" id="clearBtn" class="btn-danger">Limpar Canvas</button>
-                <button type="button" id="approveBtn" class="btn-success" style="display: none;">Aprovar e Salvar Croqui</button>
+                <!-- Botão para limpar a tela do canvas -->
+                <button id="btnClear" class="btn-danger">Limpar Canvas</button>
+                <!-- Botão para salvar a imagem do croqui em PNG -->
+                <button id="btnSave" class="btn-success">Salvar Croqui</button>
+                <!-- Botão para impressão e geração do PDF exclusivo do Admin -->
+                <button id="btnPrint" class="action-btn">Imprimir Croqui</button>
             </div>
         </div>
 
-        <!-- 🛠️ LADO DIREITO: Ferramentas de Desenho -->
+        <!-- Coluna da direita: Ferramentas de desenho -->
         <div class="sidebar-right">
             <h3>Ferramentas</h3>
             <div class="vertical-toolbar">
-                <button type="button" class="tool-btn active" data-tool="pencil">✏️ Lápis</button>
-                <button type="button" class="tool-btn" data-tool="brush">🖌️ Pincel</button>
-                <button type="button" class="tool-btn" data-tool="line">📏 Linha</button>
-                <button type="button" class="tool-btn" data-tool="rect">🔲 Retângulo</button>
-                <button type="button" class="tool-btn" data-tool="circle">⭕ Círculo</button>
-                <button type="button" class="tool-btn" data-tool="text">🔤 Texto</button>
-                <button type="button" class="tool-btn" data-tool="eraser">🧽 Borracha</button>
-
-                <hr class="divider">
-
-                <div class="control-group">
-                    <label for="colorPicker">Cor do Traço:</label>
-                    <input type="color" id="colorPicker" value="#000000">
-                </div>
-
-                <div class="control-group">
-                    <label for="lineWidth">Espessura:</label>
-                    <input type="range" id="lineWidth" min="1" max="25" value="3">
-                </div>
-
-                <hr class="divider">
-
-                <button type="button" id="undoBtn" class="action-btn">↩️ Desfazer</button>
+                <button class="tool-btn active" data-tool="pencil">✏️ Lápis</button>
+                <button class="tool-btn" data-tool="brush">🖌️ Pincel</button>
+                <button class="tool-btn" data-tool="line">📏 Linha</button>
+                <button class="tool-btn" data-tool="rect">🔲 Retângulo</button>
+                <button class="tool-btn" data-tool="circle">⭕ Círculo</button>
+                <button class="tool-btn" data-tool="text">🔤 Texto</button>
+                <button class="tool-btn" data-tool="eraser">🧹 Borracha</button>
             </div>
+            <hr class="divider">
+            <div class="control-group">
+                <label for="colorPicker">Cor do Traço:</label>
+                <input type="color" id="colorPicker" value="#000000">
+            </div>
+            <div class="control-group">
+                <label for="lineWidth">Espessura:</label>
+                <input type="range" id="lineWidth" min="1" max="20" value="3">
+            </div>
+            <button id="btnUndo" class="action-btn">↪️ Desfazer</button>
         </div>
-
     </div>
 
-<!-- Módulos JavaScript -->
+    <!-- Scripts do Firebase e regras de negócio -->
+    <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='login.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='dashboard.js') }}"></script>
-</body>
-</html>
 </body>
 </html>
