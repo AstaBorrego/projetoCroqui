@@ -1,10 +1,17 @@
 import { auth, database } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { ref, set, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { ref, set, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { CroquiEngine } from './canvas.js';
 
 let colaboradorSelecionado = null;
 let croquiEngine = null;
+
+// Helper para formatar data: DD-MM-YYYY_HH-mm-ss
+function getFormattedDate() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -17,8 +24,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const targetEmail = colaboradorSelecionado || emailAtivo;
             const userSanitized = targetEmail.replace(/\./g, '_');
+            const dataFormatada = getFormattedDate();
 
-            set(ref(database, `croquis/${userSanitized}`), {
+            // 🚀 Salva no nó no formato: colaborador_data
+            set(ref(database, `croquis/${userSanitized}_${dataFormatada}`), {
+                usuario: targetEmail,
                 imagem: dataUrl,
                 atualizadoEm: new Date().toISOString()
             });
@@ -27,40 +37,26 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("Erro ao inicializar CroquiEngine:", err);
     }
 
-    // 2. FERRAMENTAS DE DESENHO
-    const toolButtons = document.querySelectorAll('.tool-btn');
-    toolButtons.forEach(button => {
+    // 2. FERRAMENTAS
+    document.querySelectorAll('.tool-btn').forEach(button => {
         button.addEventListener('click', () => {
-            toolButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-            const selectedTool = button.getAttribute('data-tool');
-            if (croquiEngine) croquiEngine.setTool(selectedTool);
+            if (croquiEngine) croquiEngine.setTool(button.getAttribute('data-tool'));
         });
     });
 
-    // 3. CONTROLES DE COR E ESPESSURA
+    // 3. CONTROLES
     const colorPicker = document.getElementById('colorPicker');
-    if (colorPicker) {
-        colorPicker.addEventListener('input', (e) => {
-            if (croquiEngine) croquiEngine.setColor(e.target.value);
-        });
-    }
+    if (colorPicker) colorPicker.addEventListener('input', (e) => croquiEngine && croquiEngine.setColor(e.target.value));
 
     const lineWidth = document.getElementById('lineWidth');
-    if (lineWidth) {
-        lineWidth.addEventListener('input', (e) => {
-            if (croquiEngine) croquiEngine.setLineWidth(e.target.value);
-        });
-    }
+    if (lineWidth) lineWidth.addEventListener('input', (e) => croquiEngine && croquiEngine.setLineWidth(e.target.value));
 
     const btnUndo = document.getElementById('btnUndo');
-    if (btnUndo) {
-        btnUndo.addEventListener('click', () => {
-            if (croquiEngine) croquiEngine.undo();
-        });
-    }
+    if (btnUndo) btnUndo.addEventListener('click', () => croquiEngine && croquiEngine.undo());
 
-    // 4. CHAT EM TEMPO REAL E BOTÃO LIMPAR CHAT
+    // 4. CHAT
     const chatForm = document.getElementById('chatForm');
     if (chatForm) {
         chatForm.addEventListener('submit', (e) => {
@@ -81,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Botão para limpar todo o histórico do chat
     const btnClearChat = document.getElementById('btnClearChat');
     if (btnClearChat) {
         btnClearChat.addEventListener('click', () => {
@@ -91,15 +86,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Escuta do Chat
-    const chatRef = ref(database, 'chat_mensagens');
-    onValue(chatRef, (snapshot) => {
+    onValue(ref(database, 'chat_mensagens'), (snapshot) => {
         const chatBox = document.getElementById('chatBox');
         if (!chatBox) return;
-
         chatBox.innerHTML = '';
         const mensagens = snapshot.val();
-
         if (mensagens) {
             Object.values(mensagens).forEach((msg) => {
                 const p = document.createElement('p');
@@ -110,9 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5. ESCUTA DE AUTENTICAÇÃO E ABAS ONLINE
+    // 5. AUTENTICAÇÃO E FILTRO ESTRITO DE ABAS ONLINE
     onAuthStateChanged(auth, (user) => {
-        const headerTitle = document.querySelector('.bar h2');
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
         const activeEmail = user ? user.email : savedEmail;
@@ -121,20 +111,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const userDisplay = document.getElementById('userDisplay');
             if (userDisplay) userDisplay.innerText = activeEmail;
 
-            if (headerTitle) {
-                headerTitle.innerText = (userRole === 'admin') 
-                    ? "Painel de Croqui (Administrador)" 
-                    : "Painel de Croqui (Colaborador em Campo)";
-            }
+            // Marca o usuário atual como ONLINE no Firebase
+            const mySanitizedEmail = activeEmail.replace(/\./g, '_');
+            update(ref(database, `status_usuarios/${mySanitizedEmail}`), {
+                email: activeEmail,
+                status: 'online',
+                role: userRole,
+                ultimoAcesso: new Date().toISOString()
+            });
 
-            // Exibir/Ocultar botão de limpar chat se for admin
             if (btnClearChat) {
                 btnClearChat.style.display = (userRole === 'admin') ? 'inline-block' : 'none';
             }
 
-            // ESCUTA ESTRITA DOS STATUS ONLINE
-            const statusRef = ref(database, 'status_usuarios');
-            onValue(statusRef, (snapshot) => {
+            // 🚀 ESCUTA APENAS COLABORADORES ONLINE
+            onValue(ref(database, 'status_usuarios'), (snapshot) => {
                 const tabsContainer = document.getElementById('tabsContainer');
                 if (!tabsContainer) return;
 
@@ -144,7 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (usuarios) {
                     Object.keys(usuarios).forEach((key) => {
                         const u = usuarios[key];
-                        // FILTRO: Apenas colaboradores que estejam estritamente ONLINE
+                        // REGRA: Só exibe a aba se status for ESTRITAMENTE 'online'
                         if (u && u.status === 'online' && u.role !== 'admin') {
                             const btn = document.createElement('button');
                             btn.className = 'tab-btn';
@@ -179,15 +170,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 6. DEMAIS BOTOES (SALVAR, IMPRIMIR, LIMPAR)
+    // 6. SALVAR CROQUI LOCAL (DOWNLOAD) COM NOME FORMATADO
     const btnSave = document.getElementById('btnSave');
     if (btnSave) {
         btnSave.addEventListener('click', () => {
             if (!croquiEngine) return;
             const dataUrl = croquiEngine.exportDataURL();
+            const autor = (colaboradorSelecionado || localStorage.getItem('userEmail')).replace(/[@.]/g, '_');
+            const dataFormatada = getFormattedDate();
+            
             const link = document.createElement('a');
             link.href = dataUrl;
-            link.download = `croqui_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+            link.download = `${autor}_${dataFormatada}.png`;
             link.click();
         });
     }
@@ -242,14 +236,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function carregarCroquiColaborador(email) {
     const userSanitized = email.replace(/\./g, '_');
-    const croquiRef = ref(database, `croquis/${userSanitized}`);
-
-    onValue(croquiRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.imagem && croquiEngine) {
-            croquiEngine.loadImageData(data.imagem);
-        } else if (croquiEngine) {
-            croquiEngine.clear();
+    
+    // Busca a última entrada salva para o colaborador no nó
+    onValue(ref(database, 'croquis'), (snapshot) => {
+        const todosCroquis = snapshot.val();
+        if (todosCroquis && croquiEngine) {
+            // Filtra as chaves que começam com o email do colaborador
+            const chavesColaborador = Object.keys(todosCroquis).filter(k => k.startsWith(userSanitized));
+            if (chavesColaborador.length > 0) {
+                // Pega o registro mais recente
+                const ultimaChave = chavesColaborador.sort().pop();
+                if (todosCroquis[ultimaChave] && todosCroquis[ultimaChave].imagem) {
+                    croquiEngine.loadImageData(todosCroquis[ultimaChave].imagem);
+                    return;
+                }
+            }
         }
-    });
+        if (croquiEngine) croquiEngine.clear();
+    }, { onlyOnce: true });
 }
