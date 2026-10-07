@@ -3,7 +3,8 @@ export class CroquiEngine {
         this.canvas = document.getElementById(canvasId);
         if (!this.canvas) return;
 
-        this.ctx = this.canvas.getContext('2d');
+        // Otimização para leituras frequentes do canvas via getImageData
+        this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
         
         this.currentTool = 'pencil';
         this.currentColor = '#000000';
@@ -40,7 +41,7 @@ export class CroquiEngine {
     }
 
     saveState() {
-        if (this.history.length > 20) this.history.shift();
+        if (this.history.length >= 20) this.history.shift();
         this.history.push(this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height));
     }
 
@@ -48,7 +49,7 @@ export class CroquiEngine {
         if (this.history.length > 0) {
             const lastState = this.history.pop();
             this.ctx.putImageData(lastState, 0, 0);
-            if (this.onDrawCallback) this.onDrawCallback(this.getImageData());
+            if (this.onDrawCallback) this.onDrawCallback(this.exportDataURL());
         }
     }
 
@@ -68,7 +69,8 @@ export class CroquiEngine {
         this.startX = pos.x;
         this.startY = pos.y;
 
-        this.ctx.strokeStyle = this.currentColor;
+        // Restaura cor e opacidade conforme a ferramenta ativa
+        this.ctx.strokeStyle = this.currentTool === 'eraser' ? '#ffffff' : this.currentColor;
         this.ctx.fillStyle = this.currentColor;
         this.ctx.lineWidth = this.lineWidth;
         this.ctx.lineCap = 'round';
@@ -87,6 +89,8 @@ export class CroquiEngine {
                 this.ctx.font = `${Math.max(14, this.lineWidth * 4)}px Arial`;
                 this.ctx.fillText(text, this.startX, this.startY);
                 this.stopDraw();
+            } else {
+                this.isDrawing = false;
             }
         }
     }
@@ -98,12 +102,7 @@ export class CroquiEngine {
         const currentX = pos.x;
         const currentY = pos.y;
 
-        if (this.currentTool === 'pencil' || this.currentTool === 'brush') {
-            this.ctx.lineTo(currentX, currentY);
-            this.ctx.stroke();
-        } else if (this.currentTool === 'eraser') {
-            this.ctx.globalAlpha = 1.0;
-            this.ctx.strokeStyle = '#ffffff';
+        if (this.currentTool === 'pencil' || this.currentTool === 'brush' || this.currentTool === 'eraser') {
             this.ctx.lineTo(currentX, currentY);
             this.ctx.stroke();
         } else {
@@ -130,10 +129,10 @@ export class CroquiEngine {
         this.isDrawing = false;
         this.ctx.globalAlpha = 1.0;
         this.ctx.beginPath();
-        if (this.onDrawCallback) this.onDrawCallback(this.getImageData());
+        if (this.onDrawCallback) this.onDrawCallback(this.exportDataURL());
     }
 
-    getImageData() {
+    exportDataURL() {
         return this.canvas.toDataURL();
     }
 
@@ -150,6 +149,6 @@ export class CroquiEngine {
     clear() {
         this.saveState();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        if (this.onDrawCallback) this.onDrawCallback(this.getImageData());
+        if (this.onDrawCallback) this.onDrawCallback(this.exportDataURL());
     }
 }
