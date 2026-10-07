@@ -1,76 +1,696 @@
 /* ==========================================================================
-   RESPONSIVIDADE E MODO PAISAGEM (MOBILE LANDSCAPE)
+   1. RESET E ESTILOS GLOBAIS
    ========================================================================== */
 
-.canvas-wrapper {
-    width: 100%;
-    max-width: 650px;
+/* Seleção universal para aplicar modelo de caixa border-box e remover margens e preenchimentos padrões */
+* {
+    /* Define que o tamanho total do elemento inclui borda e preenchimento interno */
+    box-sizing: border-box;
+    /* Remove as margens externas padrão de todos os elementos */
+    margin: 0;
+    /* Remove os preenchimentos internos padrão de todos os elementos */
+    padding: 0;
+}
+
+/* Configuração base do elemento body da página */
+body {
+    /* Família de fontes padrão para uma leitura limpa em qualquer dispositivo */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* Cor de fundo suave para conforto visual */
+    background-color: #f4f7f6;
+    /* Cor padrão do texto principal */
+    color: #333;
+    /* Evita o aparecimento de barras de rolagem horizontais indesejadas */
+    overflow-x: hidden;
+    /* Suavização de fontes em navegadores baseados em Webkit */
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ==========================================================================
+   2. TELA DE LOGIN (COM FOCO EM RESPONSIVIDADE)
+   ========================================================================== */
+
+/* Classe para centralização vertical e horizontal da tela de login */
+.center-body {
+    /* Utiliza o modelo Flexbox para alinhamento dos elementos filhos */
     display: flex;
+    /* Centraliza o conteúdo horizontalmente */
     justify-content: center;
+    /* Centraliza o conteúdo verticalmente */
+    align-items: center;
+    /* Garante que o container ocupe no mínimo 100% da altura da tela */
+    min-height: 100vh;
+    /* Preenchimento de segurança de 16px para não colar nas bordas do celular */
+    padding: 16px;
 }
 
+/* Cartão do formulário de login */
+.login-card {
+    /* Fundo branco para destacar o formulário */
+    background: #ffffff;
+    /* Preenchimento interno responsivo e confortável */
+    padding: 32px 24px;
+    /* Arredondamento suave dos cantos do cartão */
+    border-radius: 12px;
+    /* Sombra suave para dar sensação de elevação */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    /* Largura de 100% do espaço disponível até o limite do max-width */
+    width: 100%;
+    /* Largura máxima do cartão em telas maiores (PCs e Tablets) */
+    max-width: 420px;
+    /* Organização vertical dos elementos internos */
+    display: flex;
+    /* Direção dos itens em coluna */
+    flex-direction: column;
+}
+
+/* Título da caixa de login */
+.login-card h2 {
+    /* Margem inferior para afastar o título do primeiro campo */
+    margin-bottom: 24px;
+    /* Alinhamento do texto ao centro */
+    text-align: center;
+    /* Cor principal de destaque em azul */
+    color: #007bff;
+    /* Tamanho de fonte destacado e legível */
+    font-size: 1.6rem;
+}
+
+/* Estrutura do formulário de login */
+.login-card form {
+    /* Disposição interna Flexbox */
+    display: flex;
+    /* Organização vertical em coluna */
+    flex-direction: column;
+    /* Espaçamento uniforme entre cada campo do formulário */
+    gap: 16px;
+}
+
+/* Estilização padrão para os campos de entrada, seleções e botões do login */
+.login-card input, 
+.login-card select, 
+.login-card button {
+    /* Largura total do container pai */
+    width: 100%;
+    /* Preenchimento interno maior para facilitar o toque em telas sensíveis */
+    padding: 14px;
+    /* Arredondamento das bordas dos campos */
+    border-radius: 8px;
+    /* Borda sutil nos campos de entrada */
+    border: 1px solid #ccc;
+    /* Tamanho de fonte 16px para evitar zoom automático em navegadores iOS */
+    font-size: 16px;
+    /* Suavização na transição de foco e toque */
+    transition: border-color 0.2s;
+}
+
+/* Efeito ao focar nos campos de entrada e seleção */
+.login-card input:focus,
+.login-card select:focus {
+    /* Remove a borda padrão do navegador ao focar */
+    outline: none;
+    /* Altera a cor da borda para o azul de destaque */
+    border-color: #007bff;
+}
+
+/* Estilização específica do botão de submissão do login */
+.login-card button {
+    /* Cor de fundo verde destacada para ação de confirmação */
+    background-color: #28a745;
+    /* Cor do texto em branco */
+    color: #ffffff;
+    /* Remoção da borda padrão */
+    border: none;
+    /* Texto em negrito para melhor visibilidade */
+    font-weight: bold;
+    /* Mãozinha de clique para ponteiros de mouse */
+    cursor: pointer;
+    /* Animação suave para alteração da cor ao passar o mouse */
+    transition: background-color 0.3s;
+    /* Margem superior leve para afastar do select */
+    margin-top: 8px;
+}
+
+/* Efeito hover do botão de login */
+.login-card button:hover {
+    /* Escurecimento da cor verde ao passar o mouse */
+    background-color: #218838;
+}
+
+/* Mensagem de erro do login */
+.error {
+    /* Cor vermelha para alertas de erro */
+    color: #dc3545;
+    /* Tamanho de fonte ligeiramente reduzido */
+    font-size: 14px;
+    /* Margem superior para separação do botão */
+    margin-top: 12px;
+    /* Alinhamento centralizado da mensagem */
+    text-align: center;
+}
+
+/* ==========================================================================
+   3. CABEÇALHO E ABAS (ADMIN)
+   ========================================================================== */
+
+/* Barra de topo superior */
+.bar {
+    /* Cor de fundo azul principal */
+    background-color: #007bff;
+    /* Texto em branco */
+    color: white;
+    /* Preenchimento interno da barra */
+    padding: 15px 20px;
+}
+
+/* Classe utilitária para fundos escuros */
+.bg-dark {
+    /* Fundo em tom cinza escuro */
+    background-color: #343a40;
+}
+
+/* Container de abas de navegação */
+.tabs-container {
+    /* Disposição Flexbox para organizar botões lado a lado */
+    display: flex;
+    /* Fundo cinza claro */
+    background: #e9ecef;
+    /* Preenchimento interno do container de abas */
+    padding: 10px 20px;
+    /* Espaçamento entre as abas */
+    gap: 10px;
+    /* Borda inferior para separação do conteúdo */
+    border-bottom: 1px solid #ccc;
+    /* Permite rolagem horizontal caso existam muitas abas no celular */
+    overflow-x: auto;
+}
+
+/* Botões das abas */
+.tab-btn {
+    /* Preenchimento interno dos botões de abas */
+    padding: 8px 16px;
+    /* Fundo branco */
+    background: #fff;
+    /* Borda azul nos botões */
+    border: 1px solid #007bff;
+    /* Cor do texto em azul */
+    color: #007bff;
+    /* Bordas levemente arredondadas */
+    border-radius: 4px;
+    /* Cursor em formato de clique */
+    cursor: pointer;
+    /* Texto em negrito */
+    font-weight: bold;
+    /* Impede que o texto da aba quebre em duas linhas */
+    white-space: nowrap;
+}
+
+/* Efeito hover do botão de aba */
+.tab-btn:hover {
+    /* Fundo azul ao passar o mouse */
+    background: #007bff;
+    /* Cor do texto passa a ser branca */
+    color: white;
+}
+
+/* ==========================================================================
+   4. LAYOUT PRINCIPAL DE 3 COLUNAS (WORKSPACE - DESKTOP)
+   ========================================================================== */
+
+/* Layout Grid para o workspace do sistema */
+.workspace-container {
+    /* Utiliza CSS Grid para organizar o painel lateral esquerdo, centro e direito */
+    display: grid;
+    /* Três colunas: 280px para chat, 1 fração proporcional para o canvas e 220px para ferramentas */
+    grid-template-columns: 280px 1fr 220px;
+    /* Espaçamento interno entre as colunas do Grid */
+    gap: 20px;
+    /* Preenchimento interno em volta da área de trabalho */
+    padding: 20px;
+    /* Altura mínima considerando a barra superior */
+    min-height: calc(100vh - 80px);
+    /* Cor de fundo do workspace */
+    background-color: #f4f7f6;
+    /* Alinhamento no início do container */
+    align-items: start;
+}
+
+/* 4.1 PAINEL DA ESQUERDA: CHAT */
+.sidebar-left {
+    /* Fundo branco do painel de chat */
+    background: #ffffff;
+    /* Preenchimento interno */
+    padding: 15px;
+    /* Arredondamento dos cantos */
+    border-radius: 8px;
+    /* Sombra sutil ao redor do painel */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    /* Organização interna Flexbox */
+    display: flex;
+    /* Direção vertical */
+    flex-direction: column;
+    /* Altura fixa do container no desktop */
+    height: 560px;
+}
+
+/* Título do painel de chat */
+.sidebar-left h3 {
+    /* Tamanho do texto */
+    font-size: 16px;
+    /* Margem inferior */
+    margin-bottom: 10px;
+    /* Cor do título */
+    color: #007bff;
+}
+
+/* Caixa de histórico de mensagens do chat */
+.chat-box {
+    /* Ocupa todo o espaço vertical disponível */
+    flex: 1;
+    /* Borda da caixa de chat */
+    border: 1px solid #e0e0e0;
+    /* Arredondamento da caixa de mensagens */
+    border-radius: 6px;
+    /* Preenchimento interno */
+    padding: 10px;
+    /* Ativa rolagem vertical quando houver muitas mensagens */
+    overflow-y: auto;
+    /* Fundo claro para o histórico */
+    background: #fafafa;
+    /* Margens superior e inferior */
+    margin: 10px 0;
+}
+
+/* Mensagens no chat */
+.chat-box p {
+    /* Margem inferior entre mensagens */
+    margin-bottom: 8px;
+    /* Tamanho da fonte das mensagens */
+    font-size: 13px;
+    /* Altura de linha para leitura agradável */
+    line-height: 1.4;
+    /* Quebra palavras longas para não estourar o container */
+    word-break: break-word;
+}
+
+/* Campo de entrada e botão do chat */
+.chat-input {
+    /* Disposição lado a lado do input e do botão */
+    display: flex;
+    /* Espaço de 5px entre os elementos */
+    gap: 5px;
+}
+
+/* Input do chat */
+.chat-input input {
+    /* Expande para ocupar o espaço disponível */
+    flex: 1;
+    /* Preenchimento interno */
+    padding: 8px;
+    /* Borda sutil */
+    border: 1px solid #ccc;
+    /* Cantos arredondados */
+    border-radius: 4px;
+    /* Tamanho do texto */
+    font-size: 13px;
+}
+
+/* Botão de envio do chat */
+.chat-input button {
+    /* Preenchimento interno do botão */
+    padding: 8px 12px;
+    /* Cor de fundo azul */
+    background-color: #007bff;
+    /* Texto em branco */
+    color: white;
+    /* Sem borda */
+    border: none;
+    /* Bordas arredondadas */
+    border-radius: 4px;
+    /* Mãozinha de clique */
+    cursor: pointer;
+    /* Texto em negrito */
+    font-weight: bold;
+}
+
+/* 4.2 PAINEL CENTRAL: ÁREA DO CROQUI */
+.editor-area-center {
+    /* Fundo branco do painel do editor */
+    background: #ffffff;
+    /* Preenchimento interno */
+    padding: 20px;
+    /* Bordas arredondadas */
+    border-radius: 8px;
+    /* Sombra sutil de fundo */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    /* Organização vertical Flexbox */
+    display: flex;
+    /* Direção dos filhos em coluna */
+    flex-direction: column;
+    /* Alinhamento dos itens ao centro */
+    align-items: center;
+    /* Permite rolagem horizontal se a tela for muito pequena para o canvas */
+    overflow-x: auto;
+    /* Largura total */
+    width: 100%;
+}
+
+/* Título da área do editor */
+.editor-area-center h3 {
+    /* Margem inferior do título */
+    margin-bottom: 12px;
+    /* Tamanho da fonte */
+    font-size: 18px;
+    /* Cor do texto */
+    color: #333;
+}
+
+/* Envolvente da tela de desenho (canvas) */
+.canvas-wrapper {
+    /* Margem superior para separação */
+    margin-top: 10px;
+    /* Borda de destaque azul em volta do canvas */
+    border: 2px solid #007bff;
+    /* Cantos arredondados */
+    border-radius: 6px;
+    /* Oculta conteúdo estourado */
+    overflow: hidden;
+    /* Fundo branco */
+    background: #ffffff;
+    /* Sombra para destaque */
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    /* Largura máxima responsiva de 100% */
+    max-width: 100%;
+}
+
+/* Elemento da tela interativa canvas */
 canvas {
-    width: 100% !important;
-    height: auto !important;
-    touch-action: none; /* Bloqueia gestos de scroll no canvas no celular */
+    /* Exibição em bloco */
+    display: block;
+    /* Formato de cursor em cruz para desenhar */
+    cursor: crosshair;
+    /* Fundo branco do desenho */
+    background-color: #ffffff;
+    /* Garante captura de eventos de clique e toque */
+    pointer-events: auto !important;
+    /* Ajuste para não estourar a tela em smartphones */
+    max-width: 100%;
+    /* Mantém a proporção de altura automática */
+    height: auto;
 }
 
-/* Responsividade para Telas Menores e Tablets */
+/* Container de botões de ação abaixo do canvas */
+.actions {
+    /* Disposição Flexbox */
+    display: flex;
+    /* Espaçamento entre os botões */
+    gap: 10px;
+    /* Centraliza os botões */
+    justify-content: center;
+    /* Margem superior */
+    margin-top: 15px;
+    /* Permite que os botões quebrem para a linha de baixo no celular */
+    flex-wrap: wrap;
+    /* Largura total */
+    width: 100%;
+}
+
+/* 4.3 PAINEL DA DIREITA: FERRAMENTAS DE DESENHO */
+.sidebar-right {
+    /* Fundo branco da barra de ferramentas */
+    background: #ffffff;
+    /* Preenchimento interno */
+    padding: 15px;
+    /* Cantos arredondados */
+    border-radius: 8px;
+    /* Sombra ao redor do painel */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+/* Título do painel de ferramentas */
+.sidebar-right h3 {
+    /* Tamanho do texto */
+    font-size: 16px;
+    /* Margem inferior */
+    margin-bottom: 10px;
+    /* Cor do texto */
+    color: #007bff;
+}
+
+/* Estrutura vertical dos botões de ferramenta */
+.vertical-toolbar {
+    /* Organização interna em coluna */
+    display: flex;
+    /* Direção vertical */
+    flex-direction: column;
+    /* Espaçamento de 8px entre ferramentas */
+    gap: 8px;
+    /* Margem superior */
+    margin-top: 10px;
+}
+
+/* Estilo individual de cada botão de ferramenta */
+.tool-btn {
+    /* Disposição Flexbox dos ícones e textos */
+    display: flex;
+    /* Alinhamento vertical centralizado */
+    align-items: center;
+    /* Espaço entre ícone e texto */
+    gap: 8px;
+    /* Preenchimento interno do botão */
+    padding: 9px 12px;
+    /* Fundo branco */
+    background-color: #ffffff;
+    /* Borda sutil */
+    border: 1px solid #d0d0d0;
+    /* Arredondamento de cantos */
+    border-radius: 6px;
+    /* Mãozinha de clique */
+    cursor: pointer;
+    /* Tamanho da fonte */
+    font-size: 13px;
+    /* Peso médio da fonte */
+    font-weight: 500;
+    /* Suavização nas transições de cor */
+    transition: all 0.2s ease;
+    /* Alinhamento do texto à esquerda */
+    text-align: left;
+    /* Largura total da barra */
+    width: 100%;
+}
+
+/* Efeito hover dos botões de ferramentas */
+.tool-btn:hover {
+    /* Fundo cinza/azul bem suave ao passar o mouse */
+    background-color: #f0f4f8;
+    /* Borda azul ao passar o mouse */
+    border-color: #007bff;
+}
+
+/* Estado ativo/selecionado da ferramenta */
+.tool-btn.active {
+    /* Fundo azul quando selecionado */
+    background-color: #007bff;
+    /* Texto em branco */
+    color: #ffffff;
+    /* Borda azul escuro */
+    border-color: #0056b3;
+}
+
+/* Divisor horizontal */
+.divider {
+    /* Sem bordas */
+    border: 0;
+    /* Borda superior sutil */
+    border-top: 1px solid #e0e0e0;
+    /* Margem vertical */
+    margin: 8px 0;
+}
+
+/* Grupo de controles de cor e espessura */
+.control-group {
+    /* Disposição em coluna */
+    display: flex;
+    /* Direção vertical */
+    flex-direction: column;
+    /* Espaçamento entre legenda e campo */
+    gap: 5px;
+    /* Tamanho do rótulo */
+    font-size: 12px;
+    /* Rótulo em negrito */
+    font-weight: bold;
+    /* Cor do rótulo */
+    color: #555;
+}
+
+/* Seletor de cor */
+input[type="color"] {
+    /* Largura total */
+    width: 100%;
+    /* Altura da caixa de cor */
+    height: 35px;
+    /* Borda sutil */
+    border: 1px solid #ccc;
+    /* Cantos arredondados */
+    border-radius: 4px;
+    /* Mãozinha de clique */
+    cursor: pointer;
+    /* Preenchimento interno */
+    padding: 2px;
+    /* Fundo branco */
+    background: #fff;
+}
+
+/* Deslizador de espessura (range) */
+input[type="range"] {
+    /* Largura total do elemento */
+    width: 100%;
+}
+
+/* ==========================================================================
+   5. BOTÕES DE AÇÃO E UTILITÁRIOS
+   ========================================================================== */
+
+/* Botão de ação genérico (cinza) */
+.action-btn {
+    /* Preenchimento interno */
+    padding: 10px;
+    /* Cor de fundo cinza */
+    background-color: #6c757d;
+    /* Texto em branco */
+    color: white;
+    /* Sem borda */
+    border: none;
+    /* Cantos arredondados */
+    border-radius: 6px;
+    /* Mãozinha de clique */
+    cursor: pointer;
+    /* Texto em negrito */
+    font-weight: bold;
+    /* Largura total */
+    width: 100%;
+}
+
+/* Efeito hover do botão de ação cinza */
+.action-btn:hover {
+    /* Escurecimento da cor cinza ao passar o mouse */
+    background-color: #5a6268;
+}
+
+/* Botão de sucesso (verde) */
+.btn-success {
+    /* Cor de fundo verde */
+    background-color: #28a745;
+    /* Texto em branco */
+    color: white;
+    /* Sem borda */
+    border: none;
+    /* Preenchimento interno */
+    padding: 10px 18px;
+    /* Cantos arredondados */
+    border-radius: 6px;
+    /* Mãozinha de clique */
+    cursor: pointer;
+    /* Texto em negrito */
+    font-weight: bold;
+}
+
+/* Efeito hover do botão de sucesso */
+.btn-success:hover {
+    /* Escurecimento do verde no hover */
+    background-color: #218838;
+}
+
+/* Botão de perigo/exclusão (vermelho) */
+.btn-danger {
+    /* Cor de fundo vermelha */
+    background-color: #dc3545;
+    /* Texto em branco */
+    color: white;
+    /* Sem borda */
+    border: none;
+    /* Preenchimento interno */
+    padding: 10px 18px;
+    /* Cantos arredondados */
+    border-radius: 6px;
+    /* Mãozinha de clique */
+    cursor: pointer;
+    /* Texto em negrito */
+    font-weight: bold;
+}
+
+/* Efeito hover do botão vermelho */
+.btn-danger:hover {
+    /* Escurecimento do vermelho no hover */
+    background-color: #c82333;
+}
+
+/* ==========================================================================
+   6. MEDIA QUERIES (RESPONSIVIDADE PARA TABLETS E SMARTPHONES)
+   ========================================================================== */
+
+/* Regras para dispositivos médios (Tablets de até 992px de largura) */
 @media (max-width: 992px) {
+    /* Reorganiza o workspace de 3 colunas para 1 coluna vertical adaptável */
     .workspace-container {
+        /* Muda para 1 coluna ocupando 100% da largura disponível */
         grid-template-columns: 1fr;
-        grid-template-areas: 
-            "editor"
-            "tools"
-            "chat";
+        /* Reduz o preenchimento em volta do workspace */
+        padding: 12px;
+        /* Espaçamento entre os blocos */
+        gap: 15px;
     }
 
-    .editor-area-center { grid-area: editor; }
-    .sidebar-right { grid-area: tools; }
-    .sidebar-left { grid-area: chat; height: 350px; }
-
-    .vertical-toolbar {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-        gap: 6px;
+    /* Reduz a altura fixa do chat no tablet */
+    .sidebar-left {
+        /* Altura reduzida para não ocupar a tela inteira */
+        height: 350px;
     }
 }
 
-/* Ajuste Específico para Celulares em MODO PAISAGEM (Landscape) */
-@media (max-width: 900px) and (orientation: landscape) {
-    .workspace-container {
-        display: grid;
-        grid-template-columns: 240px 1fr 140px;
-        gap: 10px;
-        padding: 8px;
-        min-height: 100vh;
+/* Regras para dispositivos pequenos (Smartphones de até 576px de largura) */
+@media (max-width: 576px) {
+    /* Reduz o espaçamento do body na tela de login no smartphone */
+    .center-body {
+        /* Reduz o preenchimento nas bordas do celular */
+        padding: 12px;
     }
 
-    .sidebar-left {
-        height: 82vh;
-        padding: 8px;
+    /* Ajustes específicos na caixa de login para celulares */
+    .login-card {
+        /* Preenchimento compacto para telas menores */
+        padding: 24px 16px;
+        /* Raio de borda levemente menor */
+        border-radius: 10px;
     }
 
-    .editor-area-center {
-        padding: 8px;
+    /* Reduz o tamanho do título em telas pequenas */
+    .login-card h2 {
+        /* Tamanho de fonte menor para não quebrar a linha */
+        font-size: 1.35rem;
+        /* Reduz a margem inferior */
+        margin-bottom: 18px;
     }
 
-    .canvas-wrapper {
-        max-width: 100%;
+    /* Ajusta tamanho de fontes e botões nos telefones */
+    .login-card input,
+    .login-card select,
+    .login-card button {
+        /* Garante altura agradável para toque dos dedos */
+        padding: 12px;
+        /* Tamanho legível */
+        font-size: 15px;
     }
 
-    .sidebar-right {
-        padding: 8px;
-    }
-
-    .vertical-toolbar {
-        display: flex;
+    /* Botões de ação do workspace ocupam 100% da largura em celulares */
+    .actions {
+        /* Força botões como Salvar/Limpar a ficarem em coluna inteira no celular */
         flex-direction: column;
-        gap: 4px;
     }
 
-    .tool-btn {
-        padding: 5px 8px;
-        font-size: 11px;
+    /* Garante que botões de ação ocupem toda a largura */
+    .btn-success, .btn-danger, .action-btn {
+        /* Largura total */
+        width: 100%;
     }
 }
