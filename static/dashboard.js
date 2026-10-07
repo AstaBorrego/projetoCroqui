@@ -1,199 +1,99 @@
-// Importa as instâncias de autenticação e banco de dados do arquivo de configuração do Firebase
-import { auth, database } from './firebase-config.js';
-// Importa a função de escuta do estado de autenticação do Firebase Auth
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-// Importa as funções para consultar, gravar e escutar alterações no Realtime Database
-import { ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-// Importa o motor de desenho da tela canvas
-import { CroquiEngine } from './canvas.js';
+<!-- Declaração do tipo de documento HTML5 -->
+<!DOCTYPE html>
+<!-- Definição do idioma da página como Português do Brasil -->
+<html lang="pt-BR">
+<!-- Cabeçalho da página com metadados e folhas de estilo -->
+<head>
+    <!-- Configuração de codificação de caracteres UTF-8 -->
+    <meta charset="UTF-8">
+    <!-- Meta tag de viewport para responsividade em dispositivos móveis e tablets -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Título exibido na aba do navegador -->
+    <title>Painel de Croqui</title>
+    <!-- Ícone da aba do navegador -->
+    <link rel="icon" href="{{ url_for('static', filename='image/logo_iar.jpeg') }}" type="image/jpeg">
+    <!-- Folha de estilo externa CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<!-- Corpo do documento -->
+<body>
+    <!-- Barra superior de navegação e cabeçalho -->
+    <div class="bar bg-dark">
+        <!-- Título do painel administrativo -->
+        <h2>Painel de Croqui (Administrador)</h2>
+        <!-- Área de identificação do usuário e logout -->
+        <div class="user-info">
+            <!-- Rótulo onde o e-mail do usuário logado será exibido dinamicamente -->
+            <span id="userDisplay"></span>
+            <!-- Botão de encerramento da sessão que invoca a função de logout -->
+            <button onclick="window.fazerLogout()" class="btn-danger">Sair</button>
+        </div>
+    </div>
 
-// Variável para armazenar o e-mail do colaborador selecionado no painel do admin
-let colaboradorSelecionado = null;
-// Instância global da engine de desenho do canvas
-let croquiEngine = null;
+    <!-- Container onde as abas dos colaboradores conectados serão inseridas -->
+    <div id="tabsContainer" class="tabs-container"></div>
 
-// Garante que o script só execute após o carregamento completo do DOM da página
-document.addEventListener('DOMContentLoaded', () => {
+    <!-- Workspace principal dividida em colunas -->
+    <div class="workspace-container">
+        <!-- Coluna da esquerda: Chat em Tempo Real -->
+        <div class="sidebar-left">
+            <h3>Chat em Tempo Real</h3>
+            <!-- Caixa de exibição das mensagens recebidas -->
+            <div id="chatBox" class="chat-box"></div>
+            <!-- Formulário para envio de novas mensagens no chat -->
+            <form id="chatForm" class="chat-input">
+                <input type="text" id="chatInput" placeholder="Sua mensagem..." required>
+                <button type="submit">Enviar</button>
+            </form>
+        </div>
 
-    // Inicializa o CroquiEngine passando o ID do canvas e o callback de gravação automática
-    croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
-        // Obtém o usuário atualmente autenticado
-        const user = auth.currentUser;
-        // Cancela a gravação se não houver usuário autenticado
-        if (!user) return;
+        <!-- Coluna central: Área de visualização e edição do Canvas -->
+        <div class="editor-area-center">
+            <h3>Croqui do Colaborador</h3>
+            <!-- Envolvente do elemento Canvas com resolução definida no HTML -->
+            <div class="canvas-wrapper">
+                <canvas id="croquiCanvas" width="800" height="600"></canvas>
+            </div>
+            
+            <!-- Grupo de botões de ação do painel administrativo -->
+            <div class="actions">
+                <!-- Botão para limpar todo o desenho do canvas -->
+                <button id="btnClear" class="btn-danger">Limpar Canvas</button>
+                <!-- Botão para salvar o croqui atual como arquivo PNG no computador -->
+                <button id="btnSave" class="btn-success">Salvar Croqui</button>
+                <!-- Botão para enviar a imagem do croqui para a impressora -->
+                <button id="btnPrint" class="action-btn">Imprimir Croqui</button>
+            </div>
+        </div>
 
-        // Se o usuário for administrador e houver um colaborador selecionado, salva no croqui do colaborador
-        // Caso contrário, salva no croqui do próprio colaborador logado
-        const targetEmail = colaboradorSelecionado || user.email;
-        // Formata o e-mail substituindo pontos por underline para ser chave do Firebase
-        const userSanitized = targetEmail.replace(/\./g, '_');
+        <!-- Coluna da direita: Barra de ferramentas de desenho -->
+        <div class="sidebar-right">
+            <h3>Ferramentas</h3>
+            <div class="vertical-toolbar">
+                <button class="tool-btn active" data-tool="pencil">✏️ Lápis</button>
+                <button class="tool-btn" data-tool="brush">🖌️ Pincel</button>
+                <button class="tool-btn" data-tool="line">📏 Linha</button>
+                <button class="tool-btn" data-tool="rect">🔲 Retângulo</button>
+                <button class="tool-btn" data-tool="circle">⭕ Círculo</button>
+                <button class="tool-btn" data-tool="text">🔤 Texto</button>
+                <button class="tool-btn" data-tool="eraser">🧹 Borracha</button>
+            </div>
+            <hr class="divider">
+            <div class="control-group">
+                <label for="colorPicker">Cor do Traço:</label>
+                <input type="color" id="colorPicker" value="#000000">
+            </div>
+            <div class="control-group">
+                <label for="lineWidth">Espessura:</label>
+                <input type="range" id="lineWidth" min="1" max="20" value="3">
+            </div>
+            <button id="btnUndo" class="action-btn">↪️ Desfazer</button>
+        </div>
+    </div>
 
-        // Atualiza a imagem do croqui no caminho correspondente no Realtime Database
-        set(ref(database, `croquis/${userSanitized}`), {
-            // Guarda a imagem convertida para formato Base64
-            imagem: dataUrl,
-            // Registra a data e hora da última atualização
-            atualizadoEm: new Date().toISOString()
-        });
-    });
-
-    // 🔒 VERIFICAÇÃO DE AUTENTICAÇÃO E CARREGAMENTO EM TEMPO REAL
-    onAuthStateChanged(auth, (user) => {
-        // Caso o usuário não esteja logado, redireciona imediatamente para a tela de login
-        if (!user) {
-            window.location.href = '/';
-            return;
-        }
-
-        // Obtém o elemento onde o e-mail do usuário logado é exibido no topo da página
-        const userDisplay = document.getElementById('userDisplay');
-        // Se o elemento existir, atualiza seu texto com o e-mail autenticado
-        if (userDisplay) userDisplay.innerText = user.email;
-
-        // Obtém o perfil armazenado localmente para identificar se é 'admin' ou 'campo'
-        const role = localStorage.getItem('userRole') || 'campo';
-
-        // 👥 1. SINCRONIZAÇÃO DE USUÁRIOS ONLINE (GERAÇÃO DINÂMICA DE ABAS)
-        const statusRef = ref(database, 'status_usuarios');
-        // Escuta em tempo real qualquer alteração de status dos usuários
-        onValue(statusRef, (snapshot) => {
-            // Obtém a lista de containers de abas/colaboradores do admin no HTML
-            const tabsContainer = document.getElementById('tabsContainer') || document.getElementById('colaboradoresList');
-            // Cancela se o elemento de abas não estiver presente na página
-            if (!tabsContainer) return;
-
-            // Limpa o conteúdo atual do container de abas
-            tabsContainer.innerHTML = '';
-            // Obtém o objeto contendo todos os usuários cadastrados no nó status_usuarios
-            const usuarios = snapshot.val();
-
-            // Se existirem usuários cadastrados no banco de dados
-            if (usuarios) {
-                // Percorre cada usuário da lista
-                Object.values(usuarios).forEach((u) => {
-                    // FILTRO CRUCIAL: Só exibe no painel os colaboradores que estiverem com status ONLINE e não forem admin
-                    if (u.status === 'online' && u.role !== 'admin') {
-                        // Cria um elemento de botão para representar a aba do colaborador
-                        const btn = document.createElement('button');
-                        // Aplica a classe CSS padrão de botão de aba
-                        btn.className = 'tab-btn';
-                        // Insere o e-mail do colaborador como rótulo do botão
-                        btn.innerText = u.email;
-
-                        // Se este for o colaborador selecionado atualmente, aplica a classe de botão ativo
-                        if (u.email === colaboradorSelecionado) {
-                            btn.classList.add('active');
-                        }
-
-                        // Registra o evento de clique na aba para alternar a visualização do croqui
-                        btn.addEventListener('click', () => {
-                            // Atualiza a variável com o e-mail do colaborador clicado
-                            colaboradorSelecionado = u.email;
-                            // Carrega o croqui em tempo real correspondente a este colaborador
-                            carregarCroquiColaborador(u.email);
-                            // Atualiza os estilos de destaque dos botões de aba
-                            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                            btn.classList.add('active');
-                        });
-
-                        // Adiciona a nova aba de colaborador ao container
-                        tabsContainer.appendChild(btn);
-                    }
-                });
-            }
-
-            // Se o colaborador que o admin estava visualizando ficou offline, limpa a seleção
-            if (colaboradorSelecionado && (!usuarios || !usuarios[colaboradorSelecionado.replace(/\./g, '_')] || usuarios[colaboradorSelecionado.replace(/\./g, '_')].status !== 'online')) {
-                // Reseta a variável de seleção de colaborador
-                colaboradorSelecionado = null;
-                // Limpa o conteúdo exibido na tela de desenho (canvas)
-                if (croquiEngine) croquiEngine.clear();
-            }
-        });
-
-        // 🎨 2. CARREGAMENTO DO CROQUI INICIAL DO USUÁRIO LOGADO
-        if (role !== 'admin') {
-            // Se for um colaborador em campo, carrega automaticamente seu próprio croqui
-            carregarCroquiColaborador(user.email);
-        }
-
-        // 💬 3. ESCUTA EM TEMPO REAL DAS MENSAGENS DO CHAT
-        const chatRef = ref(database, 'chat_mensagens');
-        // Escuta o envio de novas mensagens de chat
-        onValue(chatRef, (snapshot) => {
-            // Obtém a caixa de exibição de histórico do chat
-            const chatBox = document.getElementById('chatBox');
-            // Cancela se a caixa de chat não existir
-            if (!chatBox) return;
-
-            // Limpa o histórico atual de mensagens na tela
-            chatBox.innerHTML = '';
-            // Extrai as mensagens do snapshot
-            const mensagens = snapshot.val();
-
-            // Se houver mensagens gravadas no banco de dados
-            if (mensagens) {
-                // Percorre cada mensagem gravada
-                Object.values(mensagens).forEach((msg) => {
-                    // Cria um novo parágrafo para a mensagem
-                    const p = document.createElement('p');
-                    // Define o conteúdo com o e-mail do remetente e a mensagem enviada
-                    p.innerHTML = `<strong>${msg.usuario}:</strong> ${msg.texto}`;
-                    // Adiciona o parágrafo na caixa do chat
-                    chatBox.appendChild(p);
-                });
-                // Rola o scroll do chat até o final automaticamente para exibir a última mensagem
-                chatBox.scrollTop = chatBox.scrollHeight;
-            }
-        });
-    });
-
-    // 📤 ENVIO DE MENSAGENS NO CHAT
-    const chatForm = document.getElementById('chatForm');
-    // Registra o ouvinte para a submissão do formulário do chat
-    if (chatForm) {
-        chatForm.addEventListener('submit', (e) => {
-            // Impede o recarregamento padrão da página ao enviar
-            e.preventDefault();
-            // Obtém o campo de texto do chat
-            const input = document.getElementById('chatInput');
-            // Cancela se o campo estiver vazio ou possuir apenas espaços
-            if (!input || !input.value.trim()) return;
-
-            // Obtém o usuário atualmente logado
-            const user = auth.currentUser;
-            // Se houver usuário logado, salva a nova mensagem no nó chat_mensagens do Firebase
-            if (user) {
-                push(ref(database, 'chat_mensagens'), {
-                    // Registra o e-mail do remetente
-                    usuario: user.email,
-                    // Registra o texto digitado
-                    texto: input.value.trim(),
-                    // Registra a data e hora do envio
-                    data: new Date().toISOString()
-                });
-                // Limpa o campo de entrada de texto
-                input.value = '';
-            }
-        });
-    }
-});
-
-// 🔄 FUNÇÃO PARA CARREGAR O CROQUI DE UM COLABORADOR ESPECÍFICO EM TEMPO REAL
-function carregarCroquiColaborador(email) {
-    // Substitui pontos por underline para obter a chave correta
-    const userSanitized = email.replace(/\./g, '_');
-    // Cria a referência ao caminho do croqui do colaborador no banco
-    const croquiRef = ref(database, `croquis/${userSanitized}`);
-
-    // Escuta em tempo real as atualizações de desenho feitas por este colaborador
-    onValue(croquiRef, (snapshot) => {
-        // Extrai os dados do croqui
-        const data = snapshot.val();
-        // Se houver dados de imagem salvos e a engine do canvas estiver ativa
-        if (data && data.imagem && croquiEngine) {
-            // Renderiza a imagem no canvas do administrador
-            croquiEngine.loadImageData(data.imagem);
-        }
-    });
-}
+    <!-- Scripts de inicialização e módulos do sistema -->
+    <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='login.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>
