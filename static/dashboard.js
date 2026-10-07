@@ -1,53 +1,44 @@
-// Importa as instâncias de autenticação e banco do arquivo de configuração do Firebase
 import { auth, database } from './firebase-config.js';
-// Importa o escutador de estado do Firebase Auth
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-// Importa as funções de manipulação e escuta de dados do Realtime Database
-import { ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-// Importa o motor de controle do Canvas
+import { ref, set, onValue, push, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { CroquiEngine } from './canvas.js';
 
-// Variáveis de controle globais
 let colaboradorSelecionado = null;
 let croquiEngine = null;
 
-// Executa após a renderização completa da página
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 🎨 1. INICIALIZAÇÃO DO CANVAS E REGISTRO DO SALVAMENTO AUTOMÁTICO
+    // 1. ENGINE DO CANVAS
     try {
         croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
             const user = auth.currentUser;
             const emailAtivo = user ? user.email : localStorage.getItem('userEmail');
             if (!emailAtivo) return;
 
-            // Determina se salvará no croqui do próprio colaborador ou na aba selecionada pelo Admin
             const targetEmail = colaboradorSelecionado || emailAtivo;
             const userSanitized = targetEmail.replace(/\./g, '_');
 
-            // Grava a imagem Base64 no banco do Firebase
             set(ref(database, `croquis/${userSanitized}`), {
                 imagem: dataUrl,
                 atualizadoEm: new Date().toISOString()
             });
         });
     } catch (err) {
-        console.error("Erro ao inicializar o CroquiEngine:", err);
+        console.error("Erro ao inicializar CroquiEngine:", err);
     }
 
-    // 🛠️ 2. VINCULAÇÃO DAS FERRAMENTAS DE DESENHO
+    // 2. FERRAMENTAS DE DESENHO
     const toolButtons = document.querySelectorAll('.tool-btn');
     toolButtons.forEach(button => {
         button.addEventListener('click', () => {
             toolButtons.forEach(btn => btn.classList.remove('active'));
             button.classList.add('active');
-
             const selectedTool = button.getAttribute('data-tool');
             if (croquiEngine) croquiEngine.setTool(selectedTool);
         });
     });
 
-    // 🎨 3. CONTROLE DE COR E ESPESSURA
+    // 3. CONTROLES DE COR E ESPESSURA
     const colorPicker = document.getElementById('colorPicker');
     if (colorPicker) {
         colorPicker.addEventListener('input', (e) => {
@@ -69,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 💬 4. ENVIO DE MENSAGENS NO CHAT
+    // 4. CHAT EM TEMPO REAL E BOTÃO LIMPAR CHAT
     const chatForm = document.getElementById('chatForm');
     if (chatForm) {
         chatForm.addEventListener('submit', (e) => {
@@ -85,17 +76,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     usuario: userEmail,
                     texto: input.value.trim(),
                     data: new Date().toISOString()
-                }).then(() => {
-                    input.value = '';
-                }).catch((err) => {
-                    console.error("Erro ao enviar mensagem:", err);
-                    alert("Erro ao enviar mensagem: " + err.message);
-                });
+                }).then(() => { input.value = ''; });
             }
         });
     }
 
-    // 💬 5. ESCUTA EM TEMPO REAL DAS MENSAGENS DO CHAT
+    // Botão para limpar todo o histórico do chat
+    const btnClearChat = document.getElementById('btnClearChat');
+    if (btnClearChat) {
+        btnClearChat.addEventListener('click', () => {
+            if (confirm("Deseja apagar todo o histórico de mensagens do chat?")) {
+                remove(ref(database, 'chat_mensagens'));
+            }
+        });
+    }
+
+    // Escuta do Chat
     const chatRef = ref(database, 'chat_mensagens');
     onValue(chatRef, (snapshot) => {
         const chatBox = document.getElementById('chatBox');
@@ -114,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 🔒 6. VERIFICAÇÃO DE AUTENTICAÇÃO E RENDERIZAÇÃO ESTREITA DE ABAS
+    // 5. ESCUTA DE AUTENTICAÇÃO E ABAS ONLINE
     onAuthStateChanged(auth, (user) => {
         const headerTitle = document.querySelector('.bar h2');
         const savedEmail = localStorage.getItem('userEmail');
@@ -131,21 +127,24 @@ document.addEventListener('DOMContentLoaded', () => {
                     : "Painel de Croqui (Colaborador em Campo)";
             }
 
-            // 👥 ESCUTA APENAS COLABORADORES QUE ESTEJAM ESTRITAMENTE ONLINE
+            // Exibir/Ocultar botão de limpar chat se for admin
+            if (btnClearChat) {
+                btnClearChat.style.display = (userRole === 'admin') ? 'inline-block' : 'none';
+            }
+
+            // ESCUTA ESTRITA DOS STATUS ONLINE
             const statusRef = ref(database, 'status_usuarios');
             onValue(statusRef, (snapshot) => {
                 const tabsContainer = document.getElementById('tabsContainer');
                 if (!tabsContainer) return;
 
-                // Limpa completamente as abas no DOM antes de reconstruir
                 tabsContainer.innerHTML = '';
                 const usuarios = snapshot.val();
 
                 if (usuarios) {
                     Object.keys(usuarios).forEach((key) => {
                         const u = usuarios[key];
-
-                        // FILTRO ESTRITO: Deve possuir o objeto, estar marcado como 'online' e não ser admin
+                        // FILTRO: Apenas colaboradores que estejam estritamente ONLINE
                         if (u && u.status === 'online' && u.role !== 'admin') {
                             const btn = document.createElement('button');
                             btn.className = 'tab-btn';
@@ -155,12 +154,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 btn.classList.add('active');
                             }
 
-                            // Ao clicar na aba, carrega o croqui daquele colaborador específico
                             btn.addEventListener('click', () => {
                                 colaboradorSelecionado = u.email;
-                                
-                                const titleCanvas = document.querySelector('.editor-area-center h3');
-                                if (titleCanvas) titleCanvas.innerText = `Croqui: ${u.email}`;
+                                const canvasTitle = document.getElementById('canvasTitle');
+                                if (canvasTitle) canvasTitle.innerText = `Croqui: ${u.email}`;
 
                                 carregarCroquiColaborador(u.email);
                                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -171,18 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
                 }
-
-                // Se o colaborador selecionado desconectou, reseta o canvas do admin
-                if (colaboradorSelecionado) {
-                    const chaveSel = colaboradorSelecionado.replace(/\./g, '_');
-                    if (!usuarios || !usuarios[chaveSel] || usuarios[chaveSel].status !== 'online') {
-                        colaboradorSelecionado = null;
-                        if (croquiEngine) croquiEngine.clear();
-                    }
-                }
             });
 
-            // Se for colaborador em campo, carrega seu próprio croqui
             if (userRole !== 'admin') {
                 carregarCroquiColaborador(activeEmail);
             }
@@ -192,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 💾 7. BOTÃO SALVAR (DOWNLOAD PNG)
+    // 6. DEMAIS BOTOES (SALVAR, IMPRIMIR, LIMPAR)
     const btnSave = document.getElementById('btnSave');
     if (btnSave) {
         btnSave.addEventListener('click', () => {
@@ -205,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 🖨️ 8. BOTÃO IMPRIMIR (PDF)
     const btnPrint = document.getElementById('btnPrint');
     if (btnPrint) {
         btnPrint.addEventListener('click', () => {
@@ -244,7 +230,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 🧹 9. BOTÃO LIMPAR CANVAS
     const btnClear = document.getElementById('btnClear');
     if (btnClear) {
         btnClear.addEventListener('click', () => {
@@ -255,7 +240,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Função para escutar e atualizar o croqui em tempo real no banco
 function carregarCroquiColaborador(email) {
     const userSanitized = email.replace(/\./g, '_');
     const croquiRef = ref(database, `croquis/${userSanitized}`);
