@@ -3,7 +3,7 @@ export class CroquiEngine {
         this.canvas = document.getElementById(canvasId);
         if (!this.canvas) return;
 
-        // Otimização para leituras frequentes do canvas via getImageData
+        // Otimização para leitura e escrita frequente no Canvas
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
         
         this.currentTool = 'pencil';
@@ -22,10 +22,26 @@ export class CroquiEngine {
     }
 
     initEvents() {
+        // Eventos de Mouse (Desktop)
         this.canvas.addEventListener('mousedown', (e) => this.startDraw(e));
         this.canvas.addEventListener('mousemove', (e) => this.drawing(e));
         this.canvas.addEventListener('mouseup', (e) => this.stopDraw(e));
         this.canvas.addEventListener('mouseleave', (e) => this.stopDraw(e));
+
+        // Eventos de Toque (Celulares / Tablets)
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Evita rolagem da página ao desenhar
+            this.startDraw(e.touches[0]);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            this.drawing(e.touches[0]);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', (e) => {
+            this.stopDraw(e);
+        });
     }
 
     setTool(tool) {
@@ -55,9 +71,13 @@ export class CroquiEngine {
 
     getPos(e) {
         const rect = this.canvas.getBoundingClientRect();
+        // Mapeia proporção correta caso o canvas seja redimensionado por CSS
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+
         return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
         };
     }
 
@@ -69,7 +89,6 @@ export class CroquiEngine {
         this.startX = pos.x;
         this.startY = pos.y;
 
-        // Restaura cor e opacidade conforme a ferramenta ativa
         this.ctx.strokeStyle = this.currentTool === 'eraser' ? '#ffffff' : this.currentColor;
         this.ctx.fillStyle = this.currentColor;
         this.ctx.lineWidth = this.lineWidth;
@@ -134,6 +153,10 @@ export class CroquiEngine {
 
     exportDataURL() {
         return this.canvas.toDataURL();
+    }
+
+    getImageData() {
+        return this.exportDataURL();
     }
 
     loadImageData(dataUrl) {
