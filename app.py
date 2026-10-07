@@ -1,13 +1,18 @@
 import os
-from flask import Flask, render_template, send_from_directory
+from flask import Flask, render_template
+from whitenoise import WhiteNoise
 
-# Obtém o caminho absoluto do diretório do projeto
+# Caminho absoluto da raiz do projeto
 base_dir = os.path.abspath(os.path.dirname(__file__))
 
-# Configura o Flask com os caminhos absolutos das pastas static e templates
-app = Flask(__name__, 
-            static_folder=os.path.join(base_dir, 'static'),
-            template_folder=os.path.join(base_dir, 'templates'))
+app = Flask(
+    __name__,
+    static_folder=os.path.join(base_dir, 'static'),
+    template_folder=os.path.join(base_dir, 'templates')
+)
+
+# Acopla o WhiteNoise para servir os arquivos estáticos (CSS/JS/Imagens) no Vercel
+app.wsgi_app = WhiteNoise(app.wsgi_app, root=os.path.join(base_dir, 'static'), prefix='static/')
 
 @app.route('/')
 def index():
@@ -16,11 +21,6 @@ def index():
 @app.route('/dashboard')
 def dashboard():
     return render_template('dashboard.html')
-
-# Rota explícita de emergência para entregar os ficheiros da pasta static no Vercel
-@app.route('/static/<path:filename>')
-def serve_static(filename):
-    return send_from_directory(app.static_folder, filename)
 
 if __name__ == '__main__':
     app.run(debug=True)
