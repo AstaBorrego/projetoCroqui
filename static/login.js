@@ -1,9 +1,9 @@
 // Importa as instâncias de autenticação e banco de dados do arquivo de configuração do Firebase
 import { auth, database } from './firebase-config.js';
 // Importa a função de autenticação por email e senha da SDK do Firebase Auth
-import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-// Importa as funções para definir e vincular referências no Firebase Realtime Database
-import { ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+// Importa as funções para consultar e definir dados no Firebase Realtime Database
+import { ref, set, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 // Obtém a referência do elemento de formulário de login pelo ID
 const loginForm = document.getElementById('loginForm');
@@ -29,19 +29,43 @@ if (loginForm) {
 
         // Bloco de tentativa e tratamento de exceções para a autenticação
         try {
-            // 1. Tenta realizar o login do utilizador na plataforma Firebase Authentication
+            // 🔒 1. VERIFICAÇÃO DE SESSÃO ATIVA ANTES DE AUTENTICAR
+            // Formata o email para usar como chave sem pontos no Firebase Database
+            const userSanitized = email.replace(/\./g, '_');
+            // Obtém a referência do nó de status do usuário
+            const statusRef = ref(database, `status_usuarios/${userSanitized}`);
+            // Faz a leitura dos dados de status atuais no banco de dados
+            const snapshot = await get(statusRef);
+
+            // Verifica se existem dados gravados para este e-mail
+            if (snapshot.exists()) {
+                // Extrai as informações de status do usuário
+                const userData = snapshot.val();
+                
+                // Se o usuário estiver marcado como online, bloqueia o novo acesso
+                if (userData.status === 'online') {
+                    // Define a mensagem explicativa de bloqueio
+                    if (errorMsg) {
+                        errorMsg.innerText = "Esta conta já está conectada em outro dispositivo!";
+                    } else {
+                        alert("Esta conta já está conectada em outro dispositivo!");
+                    }
+                    // Aborta o processo de login
+                    return;
+                }
+            }
+
+            // 2. Tenta realizar o login do utilizador na plataforma Firebase Authentication
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             // Extrai as informações do objeto do utilizador autenticado
             const user = userCredential.user;
 
-            // 🧹 2. Limpa completamente o armazenamento local e de sessão do navegador para evitar conflitos
+            // 🧹 3. Limpa completamente o armazenamento local e de sessão do navegador para evitar conflitos
             localStorage.clear();
             // Limpa o armazenamento da sessão atual
             sessionStorage.clear();
 
-            // 3. Formata o email do utilizador para uso como chave no Realtime Database (substituindo pontos por underline)
-            const userSanitized = user.email.replace(/\./g, '_');
-            // Atualiza os dados de estado e presença do utilizador no banco de dados Firebase
+            // 4. Atualiza o status do utilizador para 'online' no Realtime Database
             await set(ref(database, `status_usuarios/${userSanitized}`), {
                 // Registra o endereço de e-mail do utilizador
                 email: user.email,
@@ -49,24 +73,17 @@ if (loginForm) {
                 status: 'online',
                 // Define o perfil de permissão do utilizador
                 role: role,
-                // Registra a data e hora do último acesso em formato ISO de tempo universal
+                // Registra a data e hora do último acesso em formato ISO
                 lastSeen: new Date().toISOString()
             });
 
-            // 4. Salva as credenciais básicas do utilizador no armazenamento local do navegador
+            // 5. Salva as credenciais básicas do utilizador no armazenamento local do navegador
             localStorage.setItem('userEmail', user.email);
             // Salva o perfil do utilizador no armazenamento local
             localStorage.setItem('userRole', role);
 
-            // 5. Redireciona o utilizador para a página do painel administrativo
-            if (role === 'admin') {
-                // Redireciona para o dashboard caso o perfil seja admin
-                window.location.href = '/dashboard';
-            // Tratamento genérico para o perfil de colaborador em campo
-            } else {
-                // Redireciona igualmente para o dashboard
-                window.location.href = '/dashboard';
-            }
+            // 6. Redireciona para o painel principal
+            window.location.href = '/dashboard';
 
         // Bloco de captura e tratamento de erros de autenticação
         } catch (error) {
@@ -118,8 +135,19 @@ if (loginForm) {
     });
 }
 
-// 🚪 Exporta a função de logout do utilizador para encerramento de sessão
-export function fazerLogout() {
+// 🚪 Exporta a função de logout do utilizador para encerramento de sessão e atualização no banco
+export async function fazerLogout() {
+    // Obtém o e-mail salvo na sessão local antes de limpar
+    const userEmail = localStorage.getItem('userEmail');
+    
+    // Se houver um e-mail registrado, altera o status para 'offline' no Firebase
+    if (userEmail) {
+        const userSanitized = userEmail.replace(/\./g, '_');
+        await set(ref(database, `status_usuarios/${userSanitized}/status`), 'offline');
+    }
+
+    // Encerra a sessão no Firebase Auth
+    await signOut(auth);
     // Remove todos os dados guardados no localStorage
     localStorage.clear();
     // Remove todos os dados guardados no sessionStorage
