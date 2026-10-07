@@ -1,59 +1,44 @@
-<!-- Declaração do tipo de documento HTML5 -->
 <!DOCTYPE html>
-<!-- Definição da linguagem da página como Português do Brasil -->
 <html lang="pt-BR">
-<!-- Início do cabeçalho da página, onde ficam as configurações de metadados e links de estilos -->
 <head>
-    <!-- Configuração do mapa de caracteres para suporte a acentos e caracteres especiais -->
     <meta charset="UTF-8">
-    <!-- Configuração fundamental de viewport para tornar a página responsiva em celulares e tablets -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Título exibido na aba do navegador -->
-    <title>Login - Sistema Croqui</title>
-    <!-- Link para o ícone favicon exibido na aba do navegador -->
+    <title>Acesso ao Sistema</title>
     <link rel="icon" href="{{ url_for('static', filename='image/logo_iar.jpeg') }}" type="image/jpeg">
-    <!-- Link para a folha de estilos CSS externa -->
-    <!--Por que isso resolve? O parâmetro ?v=2 força a CDN do Vercel e o seu navegador a ignorarem 
-        qualquer versão antiga salva em cache e baixarem o CSS novinho em folha na hora.  -->
-   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
-    <!-- Fim do cabeçalho -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
 </head>
-<!-- Início do corpo do documento com a classe de alinhamento centralizado -->
-<body class="center-body">
-    <!-- Cartão container do formulário de login -->
+<body class="login-body">
     <div class="login-card">
-        <!-- Título principal da tela de login -->
         <h2>Acesso ao Sistema</h2>
-        <!-- Formulário de autenticação de usuário -->
+        
+        <!-- Elemento para exibição de erros de login -->
+        <div id="errorMsg" class="error-msg"></div>
+
         <form id="loginForm">
-            <!-- Campo de entrada de e-mail do usuário -->
-            <input type="email" id="email" placeholder="Seu e-mail" required>
-            <!-- Campo de entrada de senha do usuário -->
-            <input type="password" id="password" placeholder="Sua senha" required>
-            <!-- Menu suspenso para seleção do perfil de usuário -->
-            <select id="userRole">
-                <!-- Opção para perfil de Colaborador em Campo -->
-                <option value="campo">Colaborador em Campo</option>
-                <!-- Opção para perfil de Administrador -->
-                <option value="admin">Administrador</option>
-            <!-- Fim do menu suspenso de seleção -->
-            </select>
-            <!-- Botão de submissão do formulário -->
-            <button type="submit">Entrar</button>
-        <!-- Fim do formulário de login -->
+            <div class="input-group">
+                <label for="email">E-mail</label>
+                <input type="email" id="email" placeholder="Seu e-mail" required autocomplete="username">
+            </div>
+
+            <div class="input-group">
+                <label for="password">Senha</label>
+                <input type="password" id="password" placeholder="Sua senha" required autocomplete="current-password">
+            </div>
+
+            <div class="input-group">
+                <label for="userRole">Perfil de Acesso</label>
+                <select id="userRole">
+                    <option value="campo">Colaborador em Campo</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+
+            <button type="submit" class="btn-primary">Entrar</button>
         </form>
-        <!-- Parágrafo reservado para exibição de mensagens de erro na autenticação -->
-        <p id="errorMsg" class="error"></p>
-    <!-- Fim do cartão container de login -->
     </div>
 
-    <!-- Script JS do módulo de configuração e inicialização do Firebase -->
+    <!-- Scripts do Firebase e autenticação -->
     <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}"></script>
-    <!-- Script JS do módulo com as regras de negócio do Login -->
     <script type="module" src="{{ url_for('static', filename='login.js') }}"></script>
-    <!-- Script JS do módulo para manipulação da tela de desenho/canvas -->
-    <script type="module" src="{{ url_for('static', filename='canvas.js') }}"></script>
-<!-- Fim do corpo do documento -->
 </body>
-<!-- Fim do elemento raiz HTML -->
 </html>
