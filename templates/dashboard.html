@@ -1,35 +1,36 @@
 <!-- Declaração do tipo de documento HTML5 -->
 <!DOCTYPE html>
-<!-- Definição da linguagem da página como Português do Brasil -->
+<!-- Definição da linguagem como Português do Brasil -->
 <html lang="pt-BR">
 <head>
-    <!-- Configuração de codificação de caracteres UTF-8 -->
+    <!-- Configuração de caracteres UTF-8 -->
     <meta charset="UTF-8">
-    <!-- Meta tag de viewport para ajuste em dispositivos móveis e tablets -->
+    <!-- Meta tag viewport para ajuste em smartphones e tablets -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Título exibido na aba do navegador -->
+    <!-- Título da aba do navegador -->
     <title>Painel de Croqui</title>
-    <!-- Ícone exibido na aba do navegador -->
+    <!-- Favicon do sistema -->
     <link rel="icon" href="{{ url_for('static', filename='image/logo_iar.jpeg') }}" type="image/jpeg">
-    <!-- Folha de estilo externa CSS -->
+    <!-- Folha de estilo CSS externa -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <!-- Barra superior do sistema -->
+    <!-- Barra superior escura do painel -->
     <div class="bar bg-dark">
         <h2>Painel de Croqui (Administrador)</h2>
         <div class="user-info">
             <span id="userDisplay"></span>
+            <!-- Botão de logout que chama a função global window.fazerLogout() -->
             <button onclick="window.fazerLogout()" class="btn-danger">Sair</button>
         </div>
     </div>
 
-    <!-- Container das abas dos colaboradores conectados -->
+    <!-- Container onde são geradas as abas dos colaboradores ONLINE -->
     <div id="tabsContainer" class="tabs-container"></div>
 
-    <!-- Workspace principal dividida em colunas -->
+    <!-- Container da área de trabalho do sistema -->
     <div class="workspace-container">
-        <!-- Coluna da esquerda: Chat em Tempo Real -->
+        <!-- Painel esquerdo: Chat em Tempo Real -->
         <div class="sidebar-left">
             <h3>Chat em Tempo Real</h3>
             <div id="chatBox" class="chat-box"></div>
@@ -39,25 +40,27 @@
             </form>
         </div>
 
-        <!-- Coluna central: Área do Canvas e Botões de Ação -->
+        <!-- Painel central: Área de desenho expandida -->
         <div class="editor-area-center">
             <h3>Croqui: Meu Croqui</h3>
+            <!-- Wrapper do canvas ajustado para máxima largura -->
             <div class="canvas-wrapper">
-                <canvas id="croquiCanvas" width="800" height="600"></canvas>
+                <!-- Resolução interna do Canvas aumentada para 1000x700 -->
+                <canvas id="croquiCanvas" width="1000" height="700"></canvas>
             </div>
             
-            <!-- ÁREA DOS BOTÕES DE AÇÃO DO CANVAS -->
+            <!-- Grupo de botões de ação fixos abaixo do canvas -->
             <div class="actions">
-                <!-- Botão para limpar a tela do canvas -->
+                <!-- Botão para limpar a tela de desenho -->
                 <button id="btnClear" class="btn-danger">Limpar Canvas</button>
-                <!-- Botão para salvar a imagem do croqui em PNG -->
+                <!-- Botão para fazer o download do croqui em imagem PNG -->
                 <button id="btnSave" class="btn-success">Salvar Croqui</button>
-                <!-- Botão para impressão e geração do PDF exclusivo do Admin -->
+                <!-- Botão para gerar a impressão / PDF em nova janela -->
                 <button id="btnPrint" class="action-btn">Imprimir Croqui</button>
             </div>
         </div>
 
-        <!-- Coluna da direita: Ferramentas de desenho -->
+        <!-- Painel direito: Barra de ferramentas de desenho -->
         <div class="sidebar-right">
             <h3>Ferramentas</h3>
             <div class="vertical-toolbar">
@@ -82,7 +85,7 @@
         </div>
     </div>
 
-    <!-- Scripts do Firebase e regras de negócio -->
+    <!-- Importação das bibliotecas e scripts em módulos -->
     <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='login.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='dashboard.js') }}"></script>
