@@ -1,8 +1,8 @@
 // Importa as instâncias de autenticação e banco de dados do arquivo de configuração do Firebase
 import { auth, database } from './firebase-config.js';
-// Importa a função de autenticação por email e senha da SDK do Firebase Auth
+// Importa as funções de autenticação e encerramento de sessão da SDK do Firebase Auth
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-// Importa as funções para consultar e definir dados no Firebase Realtime Database
+// Importa as funções para consultar e gravar dados no Firebase Realtime Database
 import { ref, set, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 // Obtém a referência do elemento de formulário de login pelo ID
@@ -27,108 +27,81 @@ if (loginForm) {
         // Obtém o perfil selecionado no campo select de perfil de usuário
         const role = document.getElementById('userRole').value;
 
-        // Bloco de tentativa e tratamento de exceções para a autenticação
         try {
-            // 🔒 1. VERIFICAÇÃO DE SESSÃO ATIVA ANTES DE AUTENTICAR
-            // Formata o email para usar como chave sem pontos no Firebase Database
-            const userSanitized = email.replace(/\./g, '_');
-            // Obtém a referência do nó de status do usuário
+            // 1. PRIMEIRO: Autentica o utilizador no Firebase para obter permissão no banco de dados
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            // Extrai as informações do utilizador autenticado
+            const user = userCredential.user;
+
+            // Formata o e-mail sem pontos para utilizar como chave no Realtime Database
+            const userSanitized = user.email.replace(/\./g, '_');
+            // Obtém a referência do nó de status do utilizador
             const statusRef = ref(database, `status_usuarios/${userSanitized}`);
-            // Faz a leitura dos dados de status atuais no banco de dados
+
+            // 🔒 2. SEGUNDO: Verifica se a conta já possui sessão ativa marcada como 'online'
             const snapshot = await get(statusRef);
 
-            // Verifica se existem dados gravados para este e-mail
             if (snapshot.exists()) {
-                // Extrai as informações de status do usuário
                 const userData = snapshot.val();
                 
-                // Se o usuário estiver marcado como online, bloqueia o novo acesso
+                // Se já estiver online em outro dispositivo, cancela o login e desconecta do Auth
                 if (userData.status === 'online') {
-                    // Define a mensagem explicativa de bloqueio
-                    if (errorMsg) {
-                        errorMsg.innerText = "Esta conta já está conectada em outro dispositivo!";
-                    } else {
-                        alert("Esta conta já está conectada em outro dispositivo!");
-                    }
-                    // Aborta o processo de login
+                    // Desconecta o utilizador que acabou de autenticar
+                    await signOut(auth);
+                    // Define a mensagem de bloqueio
+                    const msg = "Esta conta já está conectada em outro dispositivo!";
+                    if (errorMsg) errorMsg.innerText = msg;
+                    else alert(msg);
                     return;
                 }
             }
 
-            // 2. Tenta realizar o login do utilizador na plataforma Firebase Authentication
-            const userCredential = await signInWithEmailAndPassword(auth, email, password);
-            // Extrai as informações do objeto do utilizador autenticado
-            const user = userCredential.user;
-
-            // 🧹 3. Limpa completamente o armazenamento local e de sessão do navegador para evitar conflitos
+            // 🧹 3. Limpa completamente o armazenamento local do navegador antes de gravar os dados
             localStorage.clear();
-            // Limpa o armazenamento da sessão atual
             sessionStorage.clear();
 
-            // 4. Atualiza o status do utilizador para 'online' no Realtime Database
-            await set(ref(database, `status_usuarios/${userSanitized}`), {
-                // Registra o endereço de e-mail do utilizador
+            // 4. Marca o status do utilizador como 'online' no Realtime Database
+            await set(statusRef, {
                 email: user.email,
-                // Define o estado inicial do utilizador como online
                 status: 'online',
-                // Define o perfil de permissão do utilizador
                 role: role,
-                // Registra a data e hora do último acesso em formato ISO
                 lastSeen: new Date().toISOString()
             });
 
-            // 5. Salva as credenciais básicas do utilizador no armazenamento local do navegador
+            // 5. Guarda o e-mail e perfil na sessão do navegador
             localStorage.setItem('userEmail', user.email);
-            // Salva o perfil do utilizador no armazenamento local
             localStorage.setItem('userRole', role);
 
             // 6. Redireciona para o painel principal
             window.location.href = '/dashboard';
 
-        // Bloco de captura e tratamento de erros de autenticação
+        // Bloco de captura e tratamento de exceções
         } catch (error) {
-            // Exibe a mensagem de erro detalhada no console do navegador para depuração
             console.error("Erro de Autenticação:", error);
 
-            // Define uma mensagem genérica padrão de erro
             let mensagem = "Erro ao fazer login.";
-            // Trata as mensagens amigáveis baseadas nos códigos de erro retornados pelo Firebase
             switch (error.code) {
-                // Tratamento de credenciais inválidas ou senha errada
                 case 'auth/invalid-credential':
-                // Tratamento de utilizador não localizado
                 case 'auth/user-not-found':
-                // Tratamento de senha incorreta
                 case 'auth/wrong-password':
-                    // Atribui mensagem simplificada ao utilizador
                     mensagem = "E-mail ou senha incorretos.";
-                    // Interrompe o bloco switch
                     break;
-                // Tratamento para e-mail com sintaxe incorreta
                 case 'auth/invalid-email':
-                    // Atribui mensagem para e-mail inválido
                     mensagem = "O formato do e-mail é inválido.";
-                    // Interrompe o bloco switch
                     break;
-                // Tratamento para contas bloqueadas ou desativadas
                 case 'auth/user-disabled':
-                    // Atribui mensagem de conta desativada
                     mensagem = "Esta conta foi desativada.";
-                    // Interrompe o bloco switch
                     break;
-                // Caso seja qualquer outro erro não mapeado
+                case 'PERMISSION_DENIED':
+                    mensagem = "Erro de permissão no banco de dados. Atualize as Regras do Firebase.";
+                    break;
                 default:
-                    // Exibe a mensagem nativa capturada da exceção
                     mensagem = "Erro: " + error.message;
             }
 
-            // Exibe o texto de erro no elemento na tela se ele estiver presente
             if (errorMsg) {
-                // Insere o texto no parágrafo de erro
                 errorMsg.innerText = mensagem;
-            // Caso não haja o parágrafo de erro, exibe uma mensagem popup na tela
             } else {
-                // Exibe alerta nativo do navegador com o erro
                 alert(mensagem);
             }
         }
@@ -137,7 +110,7 @@ if (loginForm) {
 
 // 🚪 Exporta a função de logout do utilizador para encerramento de sessão e atualização no banco
 export async function fazerLogout() {
-    // Obtém o e-mail salvo na sessão local antes de limpar
+    // Obtém o e-mail salvo na sessão local
     const userEmail = localStorage.getItem('userEmail');
     
     // Se houver um e-mail registrado, altera o status para 'offline' no Firebase
@@ -148,13 +121,21 @@ export async function fazerLogout() {
 
     // Encerra a sessão no Firebase Auth
     await signOut(auth);
-    // Remove todos os dados guardados no localStorage
+    // Remove todos os dados guardados no localStorage e sessionStorage
     localStorage.clear();
-    // Remove todos os dados guardados no sessionStorage
     sessionStorage.clear();
-    // Redireciona a navegação para a raiz da aplicação (página de login)
+    // Redireciona a navegação para a página de login
     window.location.href = '/';
 }
 
-// Torna a função de logout acessível globalmente pelo objeto window para execução direta em eventos HTML
+// Torna a função de logout acessível globalmente pelo objeto window
 window.fazerLogout = fazerLogout;
+
+// 🔴 DESCONECTA AUTOMATICAMENTE CASO O UTILIZADOR FECHE A ABA DO NAVEGADOR
+window.addEventListener('beforeunload', () => {
+    const userEmail = localStorage.getItem('userEmail');
+    if (userEmail) {
+        const userSanitized = userEmail.replace(/\./g, '_');
+        set(ref(database, `status_usuarios/${userSanitized}/status`), 'offline');
+    }
+});
