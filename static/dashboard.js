@@ -1,44 +1,41 @@
-// Importa as instâncias do Firebase Auth e Realtime Database a partir da configuração
+// Importa as instâncias de autenticação e banco do arquivo de configuração do Firebase
 import { auth, database } from './firebase-config.js';
-// Importa o monitor do estado de autenticação do Firebase Auth
+// Importa o escutador de estado do Firebase Auth
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-// Importa as funções de manipulação e escuta de nós do Realtime Database
+// Importa as funções de manipulação e escuta de dados do Realtime Database
 import { ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-// Importa o motor de controle da tela do Canvas
+// Importa o motor de controle do Canvas
 import { CroquiEngine } from './canvas.js';
 
-// Declaração de variáveis globais de apoio
+// Variáveis de controle globais
 let colaboradorSelecionado = null;
 let croquiEngine = null;
 
-// Executa o script assim que o documento HTML estiver totalmente carregado
+// Executa após a renderização completa da página
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 🎨 1. INICIALIZAÇÃO DA ENGINE DO CANVAS
+    // 🎨 1. INICIALIZAÇÃO DO CANVAS E REGISTRO DO SALVAMENTO AUTOMÁTICO
     try {
-        // Instancia o motor do canvas enviando a função de salvamento automático
         croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
-            // Obtém o usuário atualmente autenticado
             const user = auth.currentUser;
             const emailAtivo = user ? user.email : localStorage.getItem('userEmail');
             if (!emailAtivo) return;
 
-            // Determina se salvará no croqui do próprio usuário ou do colaborador selecionado pelo Admin
+            // Determina se salvará no croqui do próprio colaborador ou na aba selecionada pelo Admin
             const targetEmail = colaboradorSelecionado || emailAtivo;
-            // Substitui pontos por underline para formatação de chave válida no Firebase
             const userSanitized = targetEmail.replace(/\./g, '_');
 
-            // Salva a imagem Base64 do croqui no nó Realtime
+            // Grava a imagem Base64 no banco do Firebase
             set(ref(database, `croquis/${userSanitized}`), {
                 imagem: dataUrl,
                 atualizadoEm: new Date().toISOString()
             });
         });
     } catch (err) {
-        console.error("Erro ao inicializar CroquiEngine:", err);
+        console.error("Erro ao inicializar o CroquiEngine:", err);
     }
 
-    // 🛠️ 2. BOTÕES DAS FERRAMENTAS DE DESENHO
+    // 🛠️ 2. VINCULAÇÃO DAS FERRAMENTAS DE DESENHO
     const toolButtons = document.querySelectorAll('.tool-btn');
     toolButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -46,13 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
             button.classList.add('active');
 
             const selectedTool = button.getAttribute('data-tool');
-            if (croquiEngine) {
-                croquiEngine.setTool(selectedTool);
-            }
+            if (croquiEngine) croquiEngine.setTool(selectedTool);
         });
     });
 
-    // 🎨 3. SELEÇÃO DE COR E ESPESSURA
+    // 🎨 3. CONTROLE DE COR E ESPESSURA
     const colorPicker = document.getElementById('colorPicker');
     if (colorPicker) {
         colorPicker.addEventListener('input', (e) => {
@@ -96,8 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Erro ao enviar mensagem:", err);
                     alert("Erro ao enviar mensagem: " + err.message);
                 });
-            } else {
-                alert("Sessão expirada. Faça login novamente.");
             }
         });
     }
@@ -121,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 🔒 6. VERIFICAÇÃO DE AUTENTICAÇÃO E RENDERIZAÇÃO DAS ABAS
+    // 🔒 6. VERIFICAÇÃO DE AUTENTICAÇÃO E RENDERIZAÇÃO ESTREITA DE ABAS
     onAuthStateChanged(auth, (user) => {
         const headerTitle = document.querySelector('.bar h2');
         const savedEmail = localStorage.getItem('userEmail');
@@ -133,71 +126,63 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userDisplay) userDisplay.innerText = activeEmail;
 
             if (headerTitle) {
-                headerTitle.innerText = userRole === 'admin' 
+                headerTitle.innerText = (userRole === 'admin') 
                     ? "Painel de Croqui (Administrador)" 
                     : "Painel de Croqui (Colaborador em Campo)";
             }
 
-            const btnPrint = document.getElementById('btnPrint');
-            if (btnPrint) {
-                btnPrint.style.display = (userRole === 'admin') ? 'inline-block' : 'none';
-            }
+            // 👥 ESCUTA APENAS COLABORADORES QUE ESTEJAM ESTRITAMENTE ONLINE
+            const statusRef = ref(database, 'status_usuarios');
+            onValue(statusRef, (snapshot) => {
+                const tabsContainer = document.getElementById('tabsContainer');
+                if (!tabsContainer) return;
 
-            // 👥 ESCUTA APENAS COLABORADORES COM STATUS 'ONLINE' (ADMIN)
-            if (userRole === 'admin') {
-                const statusRef = ref(database, 'status_usuarios');
-                onValue(statusRef, (snapshot) => {
-                    const tabsContainer = document.getElementById('tabsContainer');
-                    if (!tabsContainer) return;
+                // Limpa completamente as abas no DOM antes de reconstruir
+                tabsContainer.innerHTML = '';
+                const usuarios = snapshot.val();
 
-                    // Limpa a lista de abas antes de reconstruir
-                    tabsContainer.innerHTML = '';
-                    const usuarios = snapshot.val();
+                if (usuarios) {
+                    Object.keys(usuarios).forEach((key) => {
+                        const u = usuarios[key];
 
-                    if (usuarios) {
-                        // Percorre todas as chaves cadastradas no nó status_usuarios
-                        Object.keys(usuarios).forEach((key) => {
-                            const u = usuarios[key];
-                            
-                            // REGRA CRUCIAL: Só monta a aba se o colaborador estiver ONLINE
-                            if (u && u.status === 'online' && u.role !== 'admin') {
-                                const btn = document.createElement('button');
-                                btn.className = 'tab-btn';
-                                btn.innerText = u.email;
+                        // FILTRO ESTRITO: Deve possuir o objeto, estar marcado como 'online' e não ser admin
+                        if (u && u.status === 'online' && u.role !== 'admin') {
+                            const btn = document.createElement('button');
+                            btn.className = 'tab-btn';
+                            btn.innerText = u.email;
 
-                                if (u.email === colaboradorSelecionado) {
-                                    btn.classList.add('active');
-                                }
-
-                                // Evento ao clicar na aba do colaborador
-                                btn.addEventListener('click', () => {
-                                    colaboradorSelecionado = u.email;
-                                    
-                                    const titleCanvas = document.querySelector('.editor-area-center h3');
-                                    if (titleCanvas) titleCanvas.innerText = `Croqui: ${u.email}`;
-
-                                    carregarCroquiColaborador(u.email);
-                                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                                    btn.classList.add('active');
-                                });
-
-                                tabsContainer.appendChild(btn);
+                            if (u.email === colaboradorSelecionado) {
+                                btn.classList.add('active');
                             }
-                        });
-                    }
 
-                    // Se o colaborador selecionado deslogou, limpa o canvas do admin
-                    if (colaboradorSelecionado) {
-                        const chaveSel = colaboradorSelecionado.replace(/\./g, '_');
-                        if (!usuarios || !usuarios[chaveSel] || usuarios[chaveSel].status !== 'online') {
-                            colaboradorSelecionado = null;
-                            if (croquiEngine) croquiEngine.clear();
+                            // Ao clicar na aba, carrega o croqui daquele colaborador específico
+                            btn.addEventListener('click', () => {
+                                colaboradorSelecionado = u.email;
+                                
+                                const titleCanvas = document.querySelector('.editor-area-center h3');
+                                if (titleCanvas) titleCanvas.innerText = `Croqui: ${u.email}`;
+
+                                carregarCroquiColaborador(u.email);
+                                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                                btn.classList.add('active');
+                            });
+
+                            tabsContainer.appendChild(btn);
                         }
-                    }
-                });
-            }
+                    });
+                }
 
-            // Se for colaborador em campo, carrega seu próprio croqui automaticamente
+                // Se o colaborador selecionado desconectou, reseta o canvas do admin
+                if (colaboradorSelecionado) {
+                    const chaveSel = colaboradorSelecionado.replace(/\./g, '_');
+                    if (!usuarios || !usuarios[chaveSel] || usuarios[chaveSel].status !== 'online') {
+                        colaboradorSelecionado = null;
+                        if (croquiEngine) croquiEngine.clear();
+                    }
+                }
+            });
+
+            // Se for colaborador em campo, carrega seu próprio croqui
             if (userRole !== 'admin') {
                 carregarCroquiColaborador(activeEmail);
             }
@@ -220,16 +205,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 🖨️ 8. BOTÃO IMPRIMIR (EXCLUSIVO PARA ADMIN)
+    // 🖨️ 8. BOTÃO IMPRIMIR (PDF)
     const btnPrint = document.getElementById('btnPrint');
     if (btnPrint) {
         btnPrint.addEventListener('click', () => {
-            const userRole = localStorage.getItem('userRole');
-            if (userRole !== 'admin') {
-                alert("Apenas o Administrador pode imprimir em PDF.");
-                return;
-            }
-
+            if (!croquiEngine) return;
             const dataUrl = croquiEngine.exportDataURL();
             const autor = colaboradorSelecionado || localStorage.getItem('userEmail');
             const printWindow = window.open('', '_blank', 'width=900,height=700');
@@ -275,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Função para escutar e atualizar o croqui em tempo real
+// Função para escutar e atualizar o croqui em tempo real no banco
 function carregarCroquiColaborador(email) {
     const userSanitized = email.replace(/\./g, '_');
     const croquiRef = ref(database, `croquis/${userSanitized}`);
