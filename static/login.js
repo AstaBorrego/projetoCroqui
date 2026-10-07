@@ -1,6 +1,6 @@
 import { auth, database } from './firebase-config.js';
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { ref, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { ref, update, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('loginForm');
@@ -15,10 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const passwordInput = document.getElementById('password');
             const roleInput = document.getElementById('userRole');
 
-            if (!emailInput || !passwordInput || !roleInput) {
-                if (errorMsg) errorMsg.innerText = "Campos não encontrados.";
-                return;
-            }
+            if (!emailInput || !passwordInput || !roleInput) return;
 
             const email = emailInput.value.trim();
             const password = passwordInput.value;
@@ -28,32 +25,40 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btnLogin) btnLogin.disabled = true;
 
             try {
-                // 1. Autentica no Firebase Auth
+                // Autentica com e-mail e senha
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
 
-                // 2. Armazena a sessão localmente
+                // Salva os dados da sessão
                 localStorage.setItem('userEmail', user.email);
                 localStorage.setItem('userRole', role);
 
-                // 3. Atualiza o status no banco de dados (sem travar a navegação caso dê timeout)
                 const userSanitized = user.email.replace(/\./g, '_');
-                try {
-                    await update(ref(database, `status_usuarios/${userSanitized}`), {
-                        email: user.email,
-                        status: 'online',
-                        role: role,
-                        ultimoAcesso: new Date().toISOString()
-                    });
-                } catch (dbErr) {
-                    console.warn("Aviso ao atualizar status no Realtime Database:", dbErr);
-                }
+                const userStatusRef = ref(database, `status_usuarios/${userSanitized}`);
 
-                // 4. Redireciona imediatamente para o Dashboard
+                // Configura o evento de desconexão automática (muda para offline ao fechar/sair)
+                onDisconnect(userStatusRef).update({
+                    status: 'offline',
+                    ultimoAcesso: new Date().toISOString()
+                });
+
+                // Atualiza o status para ONLINE imediatamente
+                await update(userStatusRef, {
+                    email: user.email,
+                    status: 'online',
+                    role: role,
+                    ultimoAcesso: new Date().toISOString()
+                });
+
+                // 🚀 LIMPA OS DADOS DO FORMULÁRIO DE LOGIN
+                emailInput.value = '';
+                passwordInput.value = '';
+
+                // Redireciona para o Dashboard
                 window.location.href = '/dashboard';
 
             } catch (error) {
-                console.error("Erro ao autenticar:", error);
+                console.error("Erro no login:", error);
                 if (btnLogin) btnLogin.disabled = false;
                 if (errorMsg) {
                     if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
@@ -69,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Logout Global
+// Função Global de Logout
 window.fazerLogout = function() {
     const user = auth.currentUser;
     const emailAtivo = user ? user.email : localStorage.getItem('userEmail');
