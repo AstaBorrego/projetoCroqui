@@ -1,74 +1,84 @@
-<!-- Declaração do tipo de documento HTML5 -->
 <!DOCTYPE html>
-<!-- Definição da linguagem como Português do Brasil -->
 <html lang="pt-BR">
 <head>
-    <!-- Configuração de caracteres UTF-8 -->
     <meta charset="UTF-8">
-    <!-- Meta tag viewport para ajuste em smartphones e tablets -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Título da aba do navegador -->
     <title>Painel de Croqui</title>
-    <!-- Favicon do sistema -->
     <link rel="icon" href="{{ url_for('static', filename='image/logo_iar.jpeg') }}" type="image/jpeg">
-    <!-- Folha de estilo CSS externa -->
-    <link rel="stylesheet" href="/static/style.css?v=4">
-    <!-- ESTILOS EMBUTIDOS PARA GARANTIR O RENDER NO VERCEL -->
+    
     <style>
+    /* Reset Global */
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    body { background-color: #f4f7f6; color: #333; }
-    .bar { background-color: #343a40; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
-    .user-info { display: flex; align-items: center; gap: 15px; }
-    .tabs-container { display: flex; background: #e9ecef; padding: 8px 20px; gap: 8px; border-bottom: 1px solid #ccc; overflow-x: auto; min-height: 45px; }
-    .tab-btn { padding: 6px 14px; background: #fff; border: 1px solid #007bff; color: #007bff; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; }
-    .tab-btn.active, .tab-btn:hover { background: #007bff; color: white; }
-    .workspace-container { display: grid; grid-template-columns: 240px 1fr 200px; gap: 15px; padding: 15px; align-items: start; }
-    .sidebar-left, .sidebar-right, .editor-area-center { background: #ffffff; padding: 12px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-    .sidebar-left { display: flex; flex-direction: column; height: 650px; }
-    .sidebar-left h3, .sidebar-right h3 { font-size: 15px; margin-bottom: 8px; color: #007bff; }
-    .chat-box { flex: 1; border: 1px solid #e0e0e0; border-radius: 6px; padding: 8px; overflow-y: auto; background: #fafafa; margin: 8px 0; }
-    .chat-box p { margin-bottom: 6px; font-size: 13px; word-break: break-word; }
+    body { background-color: #f4f7f6; color: #333; display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* Barra Superior Dark Fixa no Topo */
+    .bar { background-color: #343a40; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; width: 100%; }
+    .bar h2 { font-size: 18px; font-weight: 600; }
+    .user-info { display: flex; align-items: center; gap: 15px; font-size: 14px; }
+
+    /* Container de Abas Horizontais dos Colaboradores */
+    .tabs-container { display: flex; background: #e9ecef; padding: 10px 20px; gap: 10px; border-bottom: 1px solid #ccc; width: 100%; overflow-x: auto; min-height: 48px; align-items: center; }
+    .tab-btn { padding: 6px 14px; background: #ffffff; border: 1px solid #007bff; color: #007bff; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; font-size: 13px; }
+    .tab-btn.active, .tab-btn:hover { background: #007bff; color: #ffffff; }
+
+    /* Layout da Área de Trabalho em 3 Colunas Alinhadas */
+    .workspace-container { display: grid; grid-template-columns: 260px 1fr 220px; gap: 15px; padding: 15px; flex: 1; width: 100%; align-items: start; }
+    .sidebar-left, .sidebar-right, .editor-area-center { background: #ffffff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+
+    /* Chat à Esquerda */
+    .sidebar-left { display: flex; flex-direction: column; height: 680px; }
+    .sidebar-left h3, .sidebar-right h3 { font-size: 15px; margin-bottom: 10px; color: #007bff; border-bottom: 2px solid #e9ecef; padding-bottom: 5px; }
+    .chat-header { display: flex; justify-content: space-between; align-items: center; }
+    .chat-box { flex: 1; border: 1px solid #e0e0e0; border-radius: 6px; padding: 10px; overflow-y: auto; background: #fafafa; margin: 10px 0; }
+    .chat-box p { margin-bottom: 8px; font-size: 13px; word-break: break-word; line-height: 1.4; }
     .chat-input { display: flex; gap: 5px; }
     .chat-input input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-    .chat-input button { padding: 8px 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .chat-input button { padding: 8px 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+    /* Painel Central: Canvas Expandido */
     .editor-area-center { display: flex; flex-direction: column; align-items: center; width: 100%; }
-    .editor-area-center h3 { margin-bottom: 10px; font-size: 18px; }
+    .editor-area-center h3 { margin-bottom: 12px; font-size: 18px; color: #333; }
     .canvas-wrapper { border: 2px solid #007bff; border-radius: 6px; overflow: hidden; background: #ffffff; width: 100%; display: flex; justify-content: center; }
-    canvas { display: block; cursor: crosshair; background-color: #ffffff; max-width: 100%; height: auto; }
+    canvas { display: block; cursor: crosshair; background-color: #ffffff; width: 100%; height: auto; }
+
+    /* Botões de Ação do Canvas */
     .actions { display: flex; gap: 12px; justify-content: center; margin-top: 15px; width: 100%; }
     .actions button, .action-btn { padding: 10px 18px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; border: none; }
     .btn-success { background-color: #28a745; color: white; }
     .btn-danger { background-color: #dc3545; color: white; }
     .action-btn { background-color: #6c757d; color: white; }
+
+    /* Barra Lateral Direita: Ferramentas */
     .vertical-toolbar { display: flex; flex-direction: column; gap: 6px; }
-    .tool-btn { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; width: 100%; }
+    .tool-btn { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; width: 100%; }
     .tool-btn.active { background-color: #007bff; color: #ffffff; border-color: #0056b3; }
-    .divider { border: 0; border-top: 1px solid #e0e0e0; margin: 8px 0; }
-    .control-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 8px; }
-    input[type="color"] { width: 100%; height: 32px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+    .divider { border: 0; border-top: 1px solid #e0e0e0; margin: 10px 0; }
+    .control-group { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: bold; color: #555; margin-bottom: 10px; }
+    input[type="color"] { width: 100%; height: 35px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
     input[type="range"] { width: 100%; }
     </style>
-    
 </head>
 <body>
-    <!-- Barra superior escura do painel -->
-    <div class="bar bg-dark">
+    <!-- 1. Barra Superior Dark -->
+    <div class="bar">
         <h2>Painel de Croqui (Administrador)</h2>
         <div class="user-info">
             <span id="userDisplay"></span>
-            <!-- Botão de logout que chama a função global window.fazerLogout() -->
-            <button onclick="window.fazerLogout()" class="btn-danger">Sair</button>
+            <button onclick="window.fazerLogout()" class="btn-danger" style="padding: 6px 12px; border-radius: 4px;">Sair</button>
         </div>
     </div>
 
-    <!-- Container onde são geradas as abas dos colaboradores ONLINE -->
+    <!-- 2. Barra de Abas dos Colaboradores ONLINE -->
     <div id="tabsContainer" class="tabs-container"></div>
 
-    <!-- Container da área de trabalho do sistema -->
+    <!-- 3. Área Principal do Workspace -->
     <div class="workspace-container">
-        <!-- Painel esquerdo: Chat em Tempo Real -->
+        <!-- Esquerda: Chat em Tempo Real -->
         <div class="sidebar-left">
-            <h3>Chat em Tempo Real</h3>
+            <div class="chat-header">
+                <h3>Chat em Tempo Real</h3>
+                <button id="btnClearChat" class="btn-danger" style="padding: 2px 6px; font-size: 11px; border-radius: 3px;">Limpar</button>
+            </div>
             <div id="chatBox" class="chat-box"></div>
             <form id="chatForm" class="chat-input">
                 <input type="text" id="chatInput" placeholder="Sua mensagem..." required>
@@ -76,27 +86,20 @@
             </form>
         </div>
 
-        <!-- Painel central: Área de desenho expandida -->
+        <!-- Centro: Canvas de Desenho -->
         <div class="editor-area-center">
-            <h3>Croqui: Meu Croqui</h3>
-            <!-- Wrapper do canvas ajustado para máxima largura -->
+            <h3 id="canvasTitle">Croqui: Meu Croqui</h3>
             <div class="canvas-wrapper">
-                <!-- Resolução interna do Canvas aumentada para 1000x700 -->
                 <canvas id="croquiCanvas" width="1000" height="700"></canvas>
             </div>
-            
-            <!-- Grupo de botões de ação fixos abaixo do canvas -->
             <div class="actions">
-                <!-- Botão para limpar a tela de desenho -->
                 <button id="btnClear" class="btn-danger">Limpar Canvas</button>
-                <!-- Botão para fazer o download do croqui em imagem PNG -->
                 <button id="btnSave" class="btn-success">Salvar Croqui</button>
-                <!-- Botão para gerar a impressão / PDF em nova janela -->
                 <button id="btnPrint" class="action-btn">Imprimir Croqui</button>
             </div>
         </div>
 
-        <!-- Painel direito: Barra de ferramentas de desenho -->
+        <!-- Direita: Barra de Ferramentas -->
         <div class="sidebar-right">
             <h3>Ferramentas</h3>
             <div class="vertical-toolbar">
@@ -117,11 +120,11 @@
                 <label for="lineWidth">Espessura:</label>
                 <input type="range" id="lineWidth" min="1" max="20" value="3">
             </div>
-            <button id="btnUndo" class="action-btn">↪️ Desfazer</button>
+            <button id="btnUndo" class="action-btn" style="width: 100%;">↪️ Desfazer</button>
         </div>
     </div>
 
-    <!-- Importação das bibliotecas e scripts em módulos -->
+    <!-- Scripts em Módulo -->
     <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='login.js') }}"></script>
     <script type="module" src="{{ url_for('static', filename='dashboard.js') }}"></script>
