@@ -16,20 +16,21 @@ function getFormattedDate() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. ENGINE DO CANVAS
+    // 1. ENGINE DO CANVAS (TRANSMISSÃO BIDIRECIONAL EM TEMPO REAL)
     try {
         croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
-            // Transmite em tempo real para o Firebase enquanto o colaborador desenha
             const user = auth.currentUser;
             const activeEmail = user ? user.email : localStorage.getItem('userEmail');
-            const userRole = localStorage.getItem('userRole') || 'campo';
             
-            // Apenas o colaborador em campo transmite seus traços em tempo real
-            if (userRole !== 'admin' && activeEmail) {
-                const userSanitized = activeEmail.replace(/\./g, '_');
+            // Define o colaborador de destino (se for Admin, usa o colaborador selecionado na aba)
+            const targetEmail = colaboradorSelecionado || activeEmail;
+            
+            if (targetEmail) {
+                const userSanitized = targetEmail.replace(/\./g, '_');
                 set(ref(database, `croquis_tempo_real/${userSanitized}`), {
-                    usuario: activeEmail,
+                    usuario: targetEmail,
                     imagem: dataUrl,
+                    atualizadoPor: activeEmail,
                     atualizadoEm: new Date().toISOString()
                 }).catch(err => console.error("Erro ao transmitir tempo real:", err));
             }
@@ -373,7 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 🚀 ESCUTA EM TEMPO REAL
+// 8. ESCUTA EM TEMPO REAL
 function escutarCroquiEmTempoReal(email) {
     const userSanitized = email.replace(/\./g, '_');
     
