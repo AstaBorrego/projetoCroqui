@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO ESTÁVEL DAS ABAS
+    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO ESTÁVEL DE TODAS AS ABAS NO REFRESH
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -143,66 +143,75 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userRole === 'admin') {
                 if (tabsContainer) tabsContainer.style.display = 'flex';
 
-                // 🎯 ESCUTA FIXA DE STATUS DOS USUÁRIOS
-                onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
-                    const statusData = statusSnapshot.val() || {};
-                    if (!tabsContainer) return;
+                // Busca a lista de cadastrados em usuarios_autorizados e mapeia o status de cada um
+                onValue(ref(database, 'usuarios_autorizados'), (authSnapshot) => {
+                    const autorizados = authSnapshot.val() || {};
 
-                    const colabsOnline = [];
+                    onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
+                        const statusData = statusSnapshot.val() || {};
+                        if (!tabsContainer) return;
 
-                    Object.keys(statusData).forEach((key) => {
-                        const userStatus = statusData[key];
-                        if (userStatus && userStatus.status === 'online' && userStatus.role !== 'admin' && userStatus.email) {
-                            colabsOnline.push(userStatus.email);
-                        }
-                    });
+                        tabsContainer.innerHTML = '';
+                        const todosColabs = [];
 
-                    // Define o selecionado padrão caso nenhum esteja ativo
-                    if (colabsOnline.length > 0 && (!colaboradorSelecionado || !colabsOnline.includes(colaboradorSelecionado))) {
-                        colaboradorSelecionado = colabsOnline[0];
-                    }
+                        Object.keys(autorizados).forEach((key) => {
+                            const usuarioAuth = autorizados[key];
 
-                    tabsContainer.innerHTML = '';
+                            if (usuarioAuth.role !== 'admin') {
+                                const emailFormatado = key.replace(/_/g, '.');
+                                todosColabs.push(emailFormatado);
 
-                    colabsOnline.forEach((emailFormatado) => {
-                        const btn = document.createElement('button');
-                        btn.className = 'tab-btn';
-                        btn.type = 'button';
-                        btn.setAttribute('data-email', emailFormatado);
-                        
-                        if (emailFormatado === colaboradorSelecionado) {
-                            btn.classList.add('active');
-                        }
+                                const userStatusInfo = statusData[key] || {};
+                                const isOnline = userStatusInfo.status === 'online';
 
-                        btn.innerHTML = `
-                            <span class="status-dot dot-online"></span>
-                            ${emailFormatado}
-                        `;
+                                const btn = document.createElement('button');
+                                btn.className = 'tab-btn';
+                                btn.type = 'button';
+                                btn.setAttribute('data-email', emailFormatado);
 
-                        // O clique APENAS alterna o destaque visual das abas e troca as escutas
-                        btn.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            colaboradorSelecionado = emailFormatado;
-                            
-                            const canvasTitle = document.getElementById('canvasTitle');
-                            if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
+                                if (emailFormatado === colaboradorSelecionado) {
+                                    btn.classList.add('active');
+                                }
 
-                            tabsContainer.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                            btn.classList.add('active');
+                                btn.innerHTML = `
+                                    <span class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></span>
+                                    ${emailFormatado}
+                                `;
 
-                            escutarCroquiEmTempoReal(emailFormatado);
-                            escutarChatPrivado(emailFormatado);
+                                btn.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    colaboradorSelecionado = emailFormatado;
+
+                                    const canvasTitle = document.getElementById('canvasTitle');
+                                    if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
+
+                                    tabsContainer.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                                    btn.classList.add('active');
+
+                                    escutarCroquiEmTempoReal(emailFormatado);
+                                    escutarChatPrivado(emailFormatado);
+                                });
+
+                                tabsContainer.appendChild(btn);
+                            }
                         });
 
-                        tabsContainer.appendChild(btn);
-                    });
+                        // Se nenhuma aba estava selecionada, seleciona a primeira por padrão
+                        if (todosColabs.length > 0 && (!colaboradorSelecionado || !todosColabs.includes(colaboradorSelecionado))) {
+                            colaboradorSelecionado = todosColabs[0];
+                        }
 
-                    if (colaboradorSelecionado) {
-                        const canvasTitle = document.getElementById('canvasTitle');
-                        if (canvasTitle) canvasTitle.innerText = `Croqui: ${colaboradorSelecionado}`;
-                        escutarCroquiEmTempoReal(colaboradorSelecionado);
-                        escutarChatPrivado(colaboradorSelecionado);
-                    }
+                        if (colaboradorSelecionado) {
+                            const canvasTitle = document.getElementById('canvasTitle');
+                            if (canvasTitle) canvasTitle.innerText = `Croqui: ${colaboradorSelecionado}`;
+
+                            const btnAtivo = tabsContainer.querySelector(`.tab-btn[data-email="${colaboradorSelecionado}"]`);
+                            if (btnAtivo) btnAtivo.classList.add('active');
+
+                            escutarCroquiEmTempoReal(colaboradorSelecionado);
+                            escutarChatPrivado(colaboradorSelecionado);
+                        }
+                    });
                 });
 
             } else {
