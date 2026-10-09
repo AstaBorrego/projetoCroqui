@@ -19,18 +19,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. ENGINE DO CANVAS
     try {
         croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
-            // Transmite em tempo real enquanto desenha (autosave/sync)
+            // Transmite em tempo real para o Firebase enquanto o colaborador desenha
             const user = auth.currentUser;
             const activeEmail = user ? user.email : localStorage.getItem('userEmail');
-            const targetEmail = colaboradorSelecionado || activeEmail;
+            const userRole = localStorage.getItem('userRole') || 'campo';
             
-            if (targetEmail) {
-                const userSanitized = targetEmail.replace(/\./g, '_');
+            // Apenas o colaborador em campo transmite seus traços em tempo real
+            if (userRole !== 'admin' && activeEmail) {
+                const userSanitized = activeEmail.replace(/\./g, '_');
                 set(ref(database, `croquis_tempo_real/${userSanitized}`), {
-                    usuario: targetEmail,
+                    usuario: activeEmail,
                     imagem: dataUrl,
                     atualizadoEm: new Date().toISOString()
-                });
+                }).catch(err => console.error("Erro ao transmitir tempo real:", err));
             }
         });
     } catch (err) {
@@ -100,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. LÓGICA DE USUÁRIOS ONLINE E ABAS DO ADMIN
+    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO DAS ABAS DE COLABORADORES LOGADOS
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -139,12 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const tabsContainer = document.getElementById('tabsContainer');
 
             if (userRole === 'admin') {
-                if (tabsContainer) {
-                    tabsContainer.style.display = 'flex';
-                    tabsContainer.innerHTML = '';
-                }
+                if (tabsContainer) tabsContainer.style.display = 'flex';
 
-                // 🎯 ESCUTA APENAS COLABORADORES ONLINE
+                // ESCUTA APENAS COLABORADORES COM STATUS ONLINE
                 onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
                     const statusData = statusSnapshot.val() || {};
                     if (!tabsContainer) return;
@@ -154,7 +152,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     Object.keys(statusData).forEach((key) => {
                         const userStatus = statusData[key];
 
-                        // FILTRO RÍGIDO: Mostra a aba apenas se for colaborador E estiver ONLINE
                         if (userStatus && userStatus.status === 'online' && userStatus.role !== 'admin' && userStatus.email) {
                             const emailFormatado = userStatus.email;
 
@@ -180,16 +177,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
 
                             tabsContainer.appendChild(btn);
+
+                            // Seleciona automaticamente o primeiro colaborador logado se nenhum estiver ativo
+                            if (!colaboradorSelecionado) {
+                                btn.click();
+                            }
                         }
                     });
                 });
 
             } else {
-                // COLABORADOR: Oculta barra de abas e abre seu próprio croqui com sync ativo
-                if (tabsContainer) {
-                    tabsContainer.style.display = 'none';
-                    tabsContainer.innerHTML = '';
-                }
+                // COLABORADOR: Esconde abas e foca na sua própria tela
+                if (tabsContainer) tabsContainer.style.display = 'none';
                 
                 colaboradorSelecionado = activeEmail;
                 const canvasTitle = document.getElementById('canvasTitle');
@@ -203,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5. SALVAR CROQUI FINAL NO BANCO DE DADOS
+    // 5. SALVAR CROQUI FINAL
     const btnSave = document.getElementById('btnSave');
     if (btnSave) {
         btnSave.addEventListener('click', async () => {
@@ -244,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 6. MODAL DE BUSCA E CARREGAMENTO DE CROQUIS SALVOS
+    // 6. MODAL DE BUSCA DE CROQUIS SALVOS
     const modalLoad = document.getElementById('modalLoad');
     const btnLoadModal = document.getElementById('btnLoadModal');
     const btnCloseModal = document.getElementById('btnCloseModal');
@@ -374,22 +373,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 🚀 ESCUTA EM TEMPO REAL DO DESENHO DO COLABORADOR
+// 🚀 ESCUTA EM TEMPO REAL
 function escutarCroquiEmTempoReal(email) {
     const userSanitized = email.replace(/\./g, '_');
     
-    // Cancela a escuta do colaborador anterior se existir
     if (unsubscribeCroquiListener) {
         unsubscribeCroquiListener();
     }
 
-    // Escuta primeiro o nó de tempo real
     unsubscribeCroquiListener = onValue(ref(database, `croquis_tempo_real/${userSanitized}`), (snapshot) => {
         const data = snapshot.val();
         if (data && data.imagem && croquiEngine) {
             croquiEngine.loadImageData(data.imagem);
         } else {
-            // Se não houver em tempo real, busca o último salvo
             get(ref(database, 'croquis')).then((snap) => {
                 const todosCroquis = snap.val();
                 if (todosCroquis && croquiEngine) {
