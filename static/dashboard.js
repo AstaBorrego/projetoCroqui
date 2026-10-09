@@ -6,6 +6,7 @@ import { CroquiEngine } from './canvas.js';
 let colaboradorSelecionado = null;
 let croquiEngine = null;
 let todosCroquisCache = {};
+let unsubscribeCroquiListener = null;
 
 function getFormattedDate() {
     const now = new Date();
@@ -17,7 +18,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1. ENGINE DO CANVAS
     try {
-        croquiEngine = new CroquiEngine('croquiCanvas');
+        croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
+            // Transmite em tempo real enquanto desenha (autosave/sync)
+            const user = auth.currentUser;
+            const activeEmail = user ? user.email : localStorage.getItem('userEmail');
+            const targetEmail = colaboradorSelecionado || activeEmail;
+            
+            if (targetEmail) {
+                const userSanitized = targetEmail.replace(/\./g, '_');
+                set(ref(database, `croquis_tempo_real/${userSanitized}`), {
+                    usuario: targetEmail,
+                    imagem: dataUrl,
+                    atualizadoEm: new Date().toISOString()
+                });
+            }
+        });
     } catch (err) {
         console.error("Erro ao inicializar CroquiEngine:", err);
     }
@@ -85,7 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. LÓGICA DIFERENCIADA ENTRE ADMINISTRADOR E COLABORADOR
+    // 4. LÓGICA DE USUÁRIOS ONLINE E ABAS DO ADMIN
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -123,63 +138,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const tabsContainer = document.getElementById('tabsContainer');
 
-            // 🚀 REGRA DE ABAS CONFORME O PERFIL:
             if (userRole === 'admin') {
-                // SE FOR ADMIN: Mostra a barra de abas e carrega TODOS os colaboradores
-                if (tabsContainer) tabsContainer.style.display = 'flex';
+                if (tabsContainer) {
+                    tabsContainer.style.display = 'flex';
+                    tabsContainer.innerHTML = '';
+                }
 
-                onValue(ref(database, 'usuarios_autorizados'), (authSnapshot) => {
-                    const autorizados = authSnapshot.val() || {};
-                    
-                    onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
-                        const statusData = statusSnapshot.val() || {};
-                        if (!tabsContainer) return;
+                // 🎯 ESCUTA APENAS COLABORADORES ONLINE
+                onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
+                    const statusData = statusSnapshot.val() || {};
+                    if (!tabsContainer) return;
 
-                        tabsContainer.innerHTML = '';
+                    tabsContainer.innerHTML = '';
 
-                        Object.keys(autorizados).forEach((key) => {
-                            const usuarioAuth = autorizados[key];
-                            if (usuarioAuth.role !== 'admin') {
-                                const emailFormatado = key.replace(/_/g, '.');
-                                const userStatusInfo = statusData[key] || {};
-                                const isOnline = userStatusInfo.status === 'online';
+                    Object.keys(statusData).forEach((key) => {
+                        const userStatus = statusData[key];
 
-                                const btn = document.createElement('button');
-                                btn.className = 'tab-btn';
-                                if (emailFormatado === colaboradorSelecionado) {
-                                    btn.classList.add('active');
-                                }
+                        // FILTRO RÍGIDO: Mostra a aba apenas se for colaborador E estiver ONLINE
+                        if (userStatus && userStatus.status === 'online' && userStatus.role !== 'admin' && userStatus.email) {
+                            const emailFormatado = userStatus.email;
 
-                                btn.innerHTML = `
-                                    <span class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></span>
-                                    ${emailFormatado}
-                                `;
-
-                                btn.addEventListener('click', () => {
-                                    colaboradorSelecionado = emailFormatado;
-                                    const canvasTitle = document.getElementById('canvasTitle');
-                                    if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
-
-                                    carregarCroquiColaborador(emailFormatado);
-                                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                                    btn.classList.add('active');
-                                });
-
-                                tabsContainer.appendChild(btn);
+                            const btn = document.createElement('button');
+                            btn.className = 'tab-btn';
+                            if (emailFormatado === colaboradorSelecionado) {
+                                btn.classList.add('active');
                             }
-                        });
+
+                            btn.innerHTML = `
+                                <span class="status-dot dot-online"></span>
+                                ${emailFormatado}
+                            `;
+
+                            btn.addEventListener('click', () => {
+                                colaboradorSelecionado = emailFormatado;
+                                const canvasTitle = document.getElementById('canvasTitle');
+                                if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
+
+                                escutarCroquiEmTempoReal(emailFormatado);
+                                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                                btn.classList.add('active');
+                            });
+
+                            tabsContainer.appendChild(btn);
+                        }
                     });
                 });
 
             } else {
-                // 🚀 SE FOR COLABORADOR: Oculta a barra de abas inteira e abre só o seu próprio croqui
-                if (tabsContainer) tabsContainer.style.display = 'none';
+                // COLABORADOR: Oculta barra de abas e abre seu próprio croqui com sync ativo
+                if (tabsContainer) {
+                    tabsContainer.style.display = 'none';
+                    tabsContainer.innerHTML = '';
+                }
                 
                 colaboradorSelecionado = activeEmail;
                 const canvasTitle = document.getElementById('canvasTitle');
                 if (canvasTitle) canvasTitle.innerText = `Croqui: ${activeEmail}`;
 
-                carregarCroquiColaborador(activeEmail);
+                escutarCroquiEmTempoReal(activeEmail);
             }
 
         } else {
@@ -187,7 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5. SALVAR CROQUI
+    // 5. SALVAR CROQUI FINAL NO BANCO DE DADOS
     const btnSave = document.getElementById('btnSave');
     if (btnSave) {
         btnSave.addEventListener('click', async () => {
@@ -228,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 6. MODAL DE CARREGAR CROQUIS COM BUSCA
+    // 6. MODAL DE BUSCA E CARREGAMENTO DE CROQUIS SALVOS
     const modalLoad = document.getElementById('modalLoad');
     const btnLoadModal = document.getElementById('btnLoadModal');
     const btnCloseModal = document.getElementById('btnCloseModal');
@@ -358,20 +374,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-function carregarCroquiColaborador(email) {
+// 🚀 ESCUTA EM TEMPO REAL DO DESENHO DO COLABORADOR
+function escutarCroquiEmTempoReal(email) {
     const userSanitized = email.replace(/\./g, '_');
-    onValue(ref(database, 'croquis'), (snapshot) => {
-        const todosCroquis = snapshot.val();
-        if (todosCroquis && croquiEngine) {
-            const chavesColaborador = Object.keys(todosCroquis).filter(k => k.startsWith(userSanitized));
-            if (chavesColaborador.length > 0) {
-                const ultimaChave = chavesColaborador.sort().pop();
-                if (todosCroquis[ultimaChave] && todosCroquis[ultimaChave].imagem) {
-                    croquiEngine.loadImageData(todosCroquis[ultimaChave].imagem);
-                    return;
+    
+    // Cancela a escuta do colaborador anterior se existir
+    if (unsubscribeCroquiListener) {
+        unsubscribeCroquiListener();
+    }
+
+    // Escuta primeiro o nó de tempo real
+    unsubscribeCroquiListener = onValue(ref(database, `croquis_tempo_real/${userSanitized}`), (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.imagem && croquiEngine) {
+            croquiEngine.loadImageData(data.imagem);
+        } else {
+            // Se não houver em tempo real, busca o último salvo
+            get(ref(database, 'croquis')).then((snap) => {
+                const todosCroquis = snap.val();
+                if (todosCroquis && croquiEngine) {
+                    const chavesColaborador = Object.keys(todosCroquis).filter(k => k.startsWith(userSanitized));
+                    if (chavesColaborador.length > 0) {
+                        const ultimaChave = chavesColaborador.sort().pop();
+                        if (todosCroquis[ultimaChave] && todosCroquis[ultimaChave].imagem) {
+                            croquiEngine.loadImageData(todosCroquis[ultimaChave].imagem);
+                            return;
+                        }
+                    }
                 }
-            }
+                if (croquiEngine) croquiEngine.clear();
+            });
         }
-        if (croquiEngine) croquiEngine.clear();
-    }, { onlyOnce: true });
+    });
 }
