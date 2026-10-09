@@ -1,10 +1,11 @@
 import { auth, database } from './firebase-config.js';
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { ref, set, onValue, push, remove, update, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { ref, set, onValue, push, remove, update, onDisconnect, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { CroquiEngine } from './canvas.js';
 
 let colaboradorSelecionado = null;
 let croquiEngine = null;
+let todosCroquisCache = {};
 
 function getFormattedDate() {
     const now = new Date();
@@ -14,14 +15,14 @@ function getFormattedDate() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. INICIALIZAÇÃO DO CANVAS
+    // 1. ENGINE DO CANVAS
     try {
         croquiEngine = new CroquiEngine('croquiCanvas');
     } catch (err) {
         console.error("Erro ao inicializar CroquiEngine:", err);
     }
 
-    // 2. FERRAMENTAS
+    // 2. FERRAMENTAS DE DESENHO
     document.querySelectorAll('.tool-btn').forEach(button => {
         button.addEventListener('click', () => {
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -84,8 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO DAS ABAS ONLINE
-    onAuthStateChanged(auth, (user) => {
+    // 4. MANTÉM TODAS AS ABAS DE COLABORADORES VISÍVEIS
+    onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
         const activeEmail = user ? user.email : savedEmail;
@@ -104,13 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const mySanitizedEmail = activeEmail.replace(/\./g, '_');
             const myStatusRef = ref(database, `status_usuarios/${mySanitizedEmail}`);
 
-            // Garante o status online do usuário logado no Firebase
             onDisconnect(myStatusRef).update({
                 status: 'offline',
                 ultimoAcesso: new Date().toISOString()
             });
 
-            update(myStatusRef, {
+            await update(myStatusRef, {
                 email: activeEmail,
                 status: 'online',
                 role: userRole,
@@ -121,33 +121,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnClearChat.style.display = (userRole === 'admin') ? 'inline-block' : 'none';
             }
 
-            // ESCUTA DOS USUÁRIOS ONLINE (Atualiza as abas sem perder a seleção)
-            onValue(ref(database, 'status_usuarios'), (snapshot) => {
-                const tabsContainer = document.getElementById('tabsContainer');
-                if (!tabsContainer) return;
+            // MANTÉM OS BOTÕES FIXOS BUSCANDO DE 'usuarios_autorizados'
+            onValue(ref(database, 'usuarios_autorizados'), (authSnapshot) => {
+                const autorizados = authSnapshot.val() || {};
+                
+                onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
+                    const statusData = statusSnapshot.val() || {};
+                    const tabsContainer = document.getElementById('tabsContainer');
+                    if (!tabsContainer) return;
 
-                tabsContainer.innerHTML = '';
-                const usuarios = snapshot.val();
+                    tabsContainer.innerHTML = '';
 
-                if (usuarios) {
-                    Object.keys(usuarios).forEach((key) => {
-                        const u = usuarios[key];
+                    Object.keys(autorizados).forEach((key) => {
+                        const usuarioAuth = autorizados[key];
+                        if (usuarioAuth.role !== 'admin') {
+                            const emailFormatado = key.replace(/_/g, '.');
+                            const userStatusInfo = statusData[key] || {};
+                            const isOnline = userStatusInfo.status === 'online';
 
-                        if (u && u.status === 'online' && u.role !== 'admin' && u.email) {
                             const btn = document.createElement('button');
                             btn.className = 'tab-btn';
-                            btn.innerText = u.email;
-
-                            if (u.email === colaboradorSelecionado) {
+                            if (emailFormatado === colaboradorSelecionado) {
                                 btn.classList.add('active');
                             }
 
-                            btn.addEventListener('click', () => {
-                                colaboradorSelecionado = u.email;
-                                const canvasTitle = document.getElementById('canvasTitle');
-                                if (canvasTitle) canvasTitle.innerText = `Croqui: ${u.email}`;
+                            btn.innerHTML = `
+                                <span class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></span>
+                                ${emailFormatado}
+                            `;
 
-                                carregarCroquiColaborador(u.email);
+                            btn.addEventListener('click', () => {
+                                colaboradorSelecionado = emailFormatado;
+                                const canvasTitle = document.getElementById('canvasTitle');
+                                if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
+
+                                carregarCroquiColaborador(emailFormatado);
                                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                                 btn.classList.add('active');
                             });
@@ -155,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             tabsContainer.appendChild(btn);
                         }
                     });
-                }
+                });
             });
 
             if (userRole !== 'admin') {
@@ -167,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5. SALVAR CROQUI SEM ZERAR AS ABAS OU PERDER A SELEÇÃO
+    // 5. SALVAR CROQUI
     const btnSave = document.getElementById('btnSave');
     if (btnSave) {
         btnSave.addEventListener('click', async () => {
@@ -187,14 +195,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const dataFormatada = getFormattedDate();
 
             try {
-                // Grava a cópia do croqui no nó do Firebase sem alterar o nó status_usuarios
                 await set(ref(database, `croquis/${userSanitized}_${dataFormatada}`), {
                     usuario: targetEmail,
                     imagem: dataUrl,
+                    dataCriacao: new Date().toLocaleString('pt-BR'),
                     atualizadoEm: new Date().toISOString()
                 });
 
-                // Baixa o arquivo localmente
                 const link = document.createElement('a');
                 link.href = dataUrl;
                 link.download = `${userSanitized}_${dataFormatada}.png`;
@@ -209,6 +216,88 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // 6. NOVO: MODAL PARA BUSCAR E CARREGAR CROQUIS
+    const modalLoad = document.getElementById('modalLoad');
+    const btnLoadModal = document.getElementById('btnLoadModal');
+    const btnCloseModal = document.getElementById('btnCloseModal');
+    const searchCroqui = document.getElementById('searchCroqui');
+    const croquiList = document.getElementById('croquiList');
+
+    if (btnLoadModal && modalLoad) {
+        btnLoadModal.addEventListener('click', async () => {
+            modalLoad.classList.add('active');
+            croquiList.innerHTML = '<p style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">Carregando croquis do Firebase...</p>';
+
+            try {
+                const snapshot = await get(ref(database, 'croquis'));
+                todosCroquisCache = snapshot.val() || {};
+                renderizarListaCroquis(todosCroquisCache, '');
+            } catch (err) {
+                console.error("Erro ao buscar croquis:", err);
+                croquiList.innerHTML = '<p style="text-align: center; color: red; font-size: 12px;">Erro ao carregar lista de croquis.</p>';
+            }
+        });
+    }
+
+    if (btnCloseModal && modalLoad) {
+        btnCloseModal.addEventListener('click', () => {
+            modalLoad.classList.remove('active');
+        });
+    }
+
+    if (searchCroqui) {
+        searchCroqui.addEventListener('input', (e) => {
+            renderizarListaCroquis(todosCroquisCache, e.target.value.toLowerCase().trim());
+        });
+    }
+
+    function renderizarListaCroquis(croquis, termoBusca) {
+        croquiList.innerHTML = '';
+        const chaves = Object.keys(croquis);
+
+        if (chaves.length === 0) {
+            croquiList.innerHTML = '<p style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">Nenhum croqui salvo no Firebase.</p>';
+            return;
+        }
+
+        let encontrou = false;
+
+        chaves.sort().reverse().forEach(key => {
+            const item = croquis[key];
+            const usuario = item.usuario || key;
+            const data = item.dataCriacao || item.atualizadoEm || '';
+
+            if (usuario.toLowerCase().includes(termoBusca) || data.toLowerCase().includes(termoBusca) || key.toLowerCase().includes(termoBusca)) {
+                encontrou = true;
+                const div = document.createElement('div');
+                div.className = 'croqui-item';
+                div.innerHTML = `
+                    <div>
+                        <strong>${usuario}</strong><br>
+                        <small style="color: #666;">${data}</small>
+                    </div>
+                    <button class="btn-abrir-croqui">Abrir</button>
+                `;
+
+                div.querySelector('.btn-abrir-croqui').addEventListener('click', () => {
+                    if (item.imagem && croquiEngine) {
+                        croquiEngine.loadImageData(item.imagem);
+                        const canvasTitle = document.getElementById('canvasTitle');
+                        if (canvasTitle) canvasTitle.innerText = `Croqui: ${usuario}`;
+                        modalLoad.classList.remove('active');
+                    }
+                });
+
+                croquiList.appendChild(div);
+            }
+        });
+
+        if (!encontrou) {
+            croquiList.innerHTML = '<p style="text-align: center; color: #888; font-size: 12px; margin-top: 20px;">Nenhum croqui encontrado para essa pesquisa.</p>';
+        }
+    }
+
+    // 7. IMPRIMIR E LIMPAR CANVAS
     const btnPrint = document.getElementById('btnPrint');
     if (btnPrint) {
         btnPrint.addEventListener('click', () => {
