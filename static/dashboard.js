@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO DAS ABAS SOMENTE PARA LOGADOS
+    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO ESTÁVEL DAS ABAS (MANTÉM TODAS AS ABAS VISÍVEIS AO CLICAR)
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userRole === 'admin') {
                 if (tabsContainer) tabsContainer.style.display = 'flex';
 
-                // 🎯 FILTRO RÍGIDO: Lista APENAS colaboradores ONLINE no Realtime Database
+                // 🎯 ESCUTA E MANUTENÇÃO DAS ABAS ONLINE SEM DESAPARECER
                 onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
                     const statusData = statusSnapshot.val() || {};
                     if (!tabsContainer) return;
@@ -160,6 +160,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                             const btn = document.createElement('button');
                             btn.className = 'tab-btn';
+                            btn.setAttribute('data-email', emailFormatado);
+                            
                             if (emailFormatado === colaboradorSelecionado) {
                                 btn.classList.add('active');
                             }
@@ -169,14 +171,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 ${emailFormatado}
                             `;
 
-                            btn.addEventListener('click', () => {
+                            // Clique altera a seleção sem reiniciar a renderização das abas
+                            btn.addEventListener('click', (e) => {
+                                e.preventDefault();
                                 colaboradorSelecionado = emailFormatado;
+                                
                                 const canvasTitle = document.getElementById('canvasTitle');
                                 if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
 
                                 escutarCroquiEmTempoReal(emailFormatado);
                                 escutarChatPrivado(emailFormatado);
 
+                                // Atualiza apenas o estilo ativo das abas
                                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                                 btn.classList.add('active');
                             });
@@ -185,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
 
-                    // Seleciona o primeiro da lista caso nenhum esteja ativo
+                    // Define o primeiro colaborador caso nenhum esteja selecionado ainda
                     if (colabsOnline.length > 0 && (!colaboradorSelecionado || !colabsOnline.includes(colaboradorSelecionado))) {
                         colaboradorSelecionado = colabsOnline[0];
                         const canvasTitle = document.getElementById('canvasTitle');
@@ -194,13 +200,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         escutarCroquiEmTempoReal(colaboradorSelecionado);
                         escutarChatPrivado(colaboradorSelecionado);
 
-                        const primeiroBtn = tabsContainer.querySelector('.tab-btn');
+                        const primeiroBtn = tabsContainer.querySelector(`.tab-btn[data-email="${colaboradorSelecionado}"]`);
                         if (primeiroBtn) primeiroBtn.classList.add('active');
                     }
                 });
 
             } else {
-                // COLABORADOR: Oculta barra de abas e conecta ao próprio canal
+                // COLABORADOR: Oculta a barra de abas e conecta ao seu próprio canal
                 if (tabsContainer) tabsContainer.style.display = 'none';
                 
                 colaboradorSelecionado = activeEmail;
