@@ -16,7 +16,7 @@ function getFormattedDate() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. ENGINE DO CANVAS (Sincronização Bidirecional em Tempo Real)
+    // 1. ENGINE DO CANVAS (Transmissão Bidirecional em Tempo Real)
     try {
         croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
             const user = auth.currentUser;
@@ -55,14 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnUndo = document.getElementById('btnUndo');
     if (btnUndo) btnUndo.addEventListener('click', () => croquiEngine && croquiEngine.undo());
 
-    // 3. CHAT EM TEMPO REAL (Restrito exclusivamente ao Administrador)
+    // 3. CHAT EM TEMPO REAL (Envio exclusivo pelo Administrador)
     const chatForm = document.getElementById('chatForm');
     if (chatForm) {
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
             const userRole = localStorage.getItem('userRole') || 'campo';
             
-            // Bloqueio de segurança no envio
             if (userRole !== 'admin') {
                 alert("O envio de mensagens é restrito ao Administrador.");
                 return;
@@ -108,7 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO DAS ABAS (APENAS PARA ADMIN)
+    // 4. AUTENTICAÇÃO E EXIBIÇÃO GARANTIDA DE ABAS DOS COLABORADORES
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -125,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     : "Painel de Croqui (Colaborador em Campo)";
             }
 
-            // 🔒 CONTROLE DE CHAT CONFORME PERFIL
+            // Desabilita o envio de chat para colaboradores
             const chatInput = document.getElementById('chatInput');
             const chatSubmitBtn = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
             if (userRole !== 'admin') {
@@ -161,65 +160,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const tabsContainer = document.getElementById('tabsContainer');
 
-            // 🎯 RENDERIZAÇÃO DAS ABAS: EXCLUSIVA PARA ADMINISTRADOR
+            // 🎯 ADMINISTRADOR: Lista TODOS os colaboradores cadastrados em 'usuarios_autorizados'
             if (userRole === 'admin') {
                 if (tabsContainer) tabsContainer.style.display = 'flex';
 
-                onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
-                    const statusData = statusSnapshot.val() || {};
-                    if (!tabsContainer) return;
+                onValue(ref(database, 'usuarios_autorizados'), (authSnapshot) => {
+                    const autorizados = authSnapshot.val() || {};
+                    
+                    onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
+                        const statusData = statusSnapshot.val() || {};
+                        if (!tabsContainer) return;
 
-                    tabsContainer.innerHTML = '';
-                    const colabsOnline = [];
+                        tabsContainer.innerHTML = '';
+                        let colabsEncontrados = [];
 
-                    Object.keys(statusData).forEach((key) => {
-                        const userStatus = statusData[key];
+                        Object.keys(autorizados).forEach((key) => {
+                            const usuarioAuth = autorizados[key];
 
-                        // Filtro: apenas colaboradores que estejam ONLINE
-                        if (userStatus && userStatus.status === 'online' && userStatus.role !== 'admin' && userStatus.email) {
-                            colabsOnline.push(userStatus.email);
+                            if (usuarioAuth.role !== 'admin') {
+                                const emailFormatado = key.replace(/_/g, '.');
+                                colabsEncontrados.push(emailFormatado);
 
-                            const emailFormatado = userStatus.email;
-                            const btn = document.createElement('button');
-                            btn.className = 'tab-btn';
-                            
-                            if (emailFormatado === colaboradorSelecionado) {
-                                btn.classList.add('active');
+                                const userStatusInfo = statusData[key] || {};
+                                const isOnline = userStatusInfo.status === 'online';
+
+                                const btn = document.createElement('button');
+                                btn.className = 'tab-btn';
+                                
+                                if (emailFormatado === colaboradorSelecionado) {
+                                    btn.classList.add('active');
+                                }
+
+                                btn.innerHTML = `
+                                    <span class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></span>
+                                    ${emailFormatado}
+                                `;
+
+                                btn.addEventListener('click', () => {
+                                    colaboradorSelecionado = emailFormatado;
+                                    const canvasTitle = document.getElementById('canvasTitle');
+                                    if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
+
+                                    escutarCroquiEmTempoReal(emailFormatado);
+                                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                                    btn.classList.add('active');
+                                });
+
+                                tabsContainer.appendChild(btn);
                             }
+                        });
 
-                            btn.innerHTML = `
-                                <span class="status-dot dot-online"></span>
-                                ${emailFormatado}
-                            `;
-
-                            btn.addEventListener('click', () => {
-                                colaboradorSelecionado = emailFormatado;
-                                const canvasTitle = document.getElementById('canvasTitle');
-                                if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
-
-                                escutarCroquiEmTempoReal(emailFormatado);
-                                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                                btn.classList.add('active');
-                            });
-
-                            tabsContainer.appendChild(btn);
+                        // Seleciona automaticamente o primeiro colaborador da lista se nenhum estiver ativo
+                        if (colabsEncontrados.length > 0 && !colaboradorSelecionado) {
+                            colaboradorSelecionado = colabsEncontrados[0];
+                            const canvasTitle = document.getElementById('canvasTitle');
+                            if (canvasTitle) canvasTitle.innerText = `Croqui: ${colaboradorSelecionado}`;
+                            escutarCroquiEmTempoReal(colaboradorSelecionado);
+                            
+                            const primeiroBtn = tabsContainer.querySelector('.tab-btn');
+                            if (primeiroBtn) primeiroBtn.classList.add('active');
                         }
                     });
-
-                    // Seleciona automaticamente o primeiro colaborador logado caso nenhum esteja ativo
-                    if (colabsOnline.length > 0 && (!colaboradorSelecionado || !colabsOnline.includes(colaboradorSelecionado))) {
-                        colaboradorSelecionado = colabsOnline[0];
-                        const canvasTitle = document.getElementById('canvasTitle');
-                        if (canvasTitle) canvasTitle.innerText = `Croqui: ${colaboradorSelecionado}`;
-                        escutarCroquiEmTempoReal(colaboradorSelecionado);
-                        
-                        const primeiroBtn = tabsContainer.querySelector('.tab-btn');
-                        if (primeiroBtn) primeiroBtn.classList.add('active');
-                    }
                 });
 
             } else {
-                // COLABORADOR: Oculta totalmente a barra de abas
+                // COLABORADOR: Oculta a barra de abas e abre o seu próprio workspace
                 if (tabsContainer) tabsContainer.style.display = 'none';
                 
                 colaboradorSelecionado = activeEmail;
