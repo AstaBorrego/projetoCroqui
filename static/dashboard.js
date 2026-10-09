@@ -6,7 +6,6 @@ import { CroquiEngine } from './canvas.js';
 let colaboradorSelecionado = null;
 let croquiEngine = null;
 
-// Formatação do nome: colaborador_data
 function getFormattedDate() {
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
@@ -15,26 +14,11 @@ function getFormattedDate() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. ENGINE DO CANVAS
+    // 1. INICIALIZAÇÃO DO CANVAS
     try {
-        croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
-            const user = auth.currentUser;
-            const emailAtivo = user ? user.email : localStorage.getItem('userEmail');
-            if (!emailAtivo) return;
-
-            const targetEmail = colaboradorSelecionado || emailAtivo;
-            const userSanitized = targetEmail.replace(/\./g, '_');
-            const dataFormatada = getFormattedDate();
-
-            // Salva com o padrão: colaborador_data
-            set(ref(database, `croquis/${userSanitized}_${dataFormatada}`), {
-                usuario: targetEmail,
-                imagem: dataUrl,
-                atualizadoEm: new Date().toISOString()
-            });
-        });
+        croquiEngine = new CroquiEngine('croquiCanvas');
     } catch (err) {
-        console.error("Erro no CroquiEngine:", err);
+        console.error("Erro ao inicializar CroquiEngine:", err);
     }
 
     // 2. FERRAMENTAS
@@ -46,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // 3. CONTROLES
     const colorPicker = document.getElementById('colorPicker');
     if (colorPicker) colorPicker.addEventListener('input', (e) => croquiEngine && croquiEngine.setColor(e.target.value));
 
@@ -56,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnUndo = document.getElementById('btnUndo');
     if (btnUndo) btnUndo.addEventListener('click', () => croquiEngine && croquiEngine.undo());
 
-    // 4. CHAT EM TEMPO REAL
+    // 3. CHAT EM TEMPO REAL
     const chatForm = document.getElementById('chatForm');
     if (chatForm) {
         chatForm.addEventListener('submit', (e) => {
@@ -101,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 5. OBSERVAÇÃO DE USUÁRIOS E ABAS ONLINE
+    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO DAS ABAS ONLINE
     onAuthStateChanged(auth, (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -121,6 +104,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const mySanitizedEmail = activeEmail.replace(/\./g, '_');
             const myStatusRef = ref(database, `status_usuarios/${mySanitizedEmail}`);
 
+            // Garante o status online do usuário logado no Firebase
             onDisconnect(myStatusRef).update({
                 status: 'offline',
                 ultimoAcesso: new Date().toISOString()
@@ -137,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnClearChat.style.display = (userRole === 'admin') ? 'inline-block' : 'none';
             }
 
-            // ESCUTA ESTRITA DAS ABAS ONLINE
+            // ESCUTA DOS USUÁRIOS ONLINE (Atualiza as abas sem perder a seleção)
             onValue(ref(database, 'status_usuarios'), (snapshot) => {
                 const tabsContainer = document.getElementById('tabsContainer');
                 if (!tabsContainer) return;
@@ -148,8 +132,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (usuarios) {
                     Object.keys(usuarios).forEach((key) => {
                         const u = usuarios[key];
-                        // REGRA: Apenas usuários com status estritamente 'online'
-                        if (u && u.status === 'online' && u.role !== 'admin') {
+
+                        if (u && u.status === 'online' && u.role !== 'admin' && u.email) {
                             const btn = document.createElement('button');
                             btn.className = 'tab-btn';
                             btn.innerText = u.email;
@@ -183,19 +167,45 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 6. BOTÕES DE SALVAR E DOWNLOAD
+    // 5. SALVAR CROQUI SEM ZERAR AS ABAS OU PERDER A SELEÇÃO
     const btnSave = document.getElementById('btnSave');
     if (btnSave) {
-        btnSave.addEventListener('click', () => {
+        btnSave.addEventListener('click', async () => {
             if (!croquiEngine) return;
-            const dataUrl = croquiEngine.exportDataURL();
-            const autor = (colaboradorSelecionado || localStorage.getItem('userEmail')).replace(/[@.]/g, '_');
-            const dataFormatada = getFormattedDate();
             
-            const link = document.createElement('a');
-            link.href = dataUrl;
-            link.download = `${autor}_${dataFormatada}.png`;
-            link.click();
+            const user = auth.currentUser;
+            const activeEmail = user ? user.email : localStorage.getItem('userEmail');
+            const targetEmail = colaboradorSelecionado || activeEmail;
+
+            if (!targetEmail) {
+                alert("Nenhum colaborador selecionado.");
+                return;
+            }
+
+            const dataUrl = croquiEngine.exportDataURL();
+            const userSanitized = targetEmail.replace(/\./g, '_');
+            const dataFormatada = getFormattedDate();
+
+            try {
+                // Grava a cópia do croqui no nó do Firebase sem alterar o nó status_usuarios
+                await set(ref(database, `croquis/${userSanitized}_${dataFormatada}`), {
+                    usuario: targetEmail,
+                    imagem: dataUrl,
+                    atualizadoEm: new Date().toISOString()
+                });
+
+                // Baixa o arquivo localmente
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `${userSanitized}_${dataFormatada}.png`;
+                link.click();
+
+                alert(`Croqui de ${targetEmail} salvo com sucesso!`);
+
+            } catch (err) {
+                console.error("Erro ao salvar croqui:", err);
+                alert("Erro ao salvar no banco de dados.");
+            }
         });
     }
 
