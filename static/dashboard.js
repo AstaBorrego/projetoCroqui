@@ -17,7 +17,7 @@ function getFormattedDate() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. ENGINE DO CANVAS (Sincronização Bidirecional em Tempo Real)
+    // 1. ENGINE DO CANVAS (TRANSMISSÃO BIDIRECIONAL EM TEMPO REAL)
     try {
         croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
             const user = auth.currentUser;
@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnUndo = document.getElementById('btnUndo');
     if (btnUndo) btnUndo.addEventListener('click', () => croquiEngine && croquiEngine.undo());
 
-    // 3. ENVIO DE MENSAGENS NO CHAT PRIVADO
+    // 3. CHAT PRIVADO (ADMIN ↔ COLABORADOR)
     const chatForm = document.getElementById('chatForm');
     if (chatForm) {
         chatForm.addEventListener('submit', (e) => {
@@ -68,17 +68,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const activeEmail = user ? user.email : localStorage.getItem('userEmail');
             const userRole = localStorage.getItem('userRole') || 'campo';
 
-            // O canal privado do chat é sempre definido pelo e-mail do colaborador
-            const canalColaborador = (userRole === 'admin') ? colaboradorSelecionado : activeEmail;
+            const targetEmail = (userRole === 'admin') ? colaboradorSelecionado : activeEmail;
 
-            if (!canalColaborador) {
-                alert("Selecione um colaborador para enviar mensagem.");
+            if (!targetEmail) {
+                alert("Nenhum colaborador selecionado para o chat.");
                 return;
             }
 
-            const canalSanitized = canalColaborador.replace(/\./g, '_');
+            const targetSanitized = targetEmail.replace(/\./g, '_');
 
-            push(ref(database, `chat_mensagens/${canalSanitized}`), {
+            push(ref(database, `chat_mensagens/${targetSanitized}`), {
                 usuario: activeEmail,
                 texto: input.value.trim(),
                 data: new Date().toISOString()
@@ -94,16 +93,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const userRole = localStorage.getItem('userRole') || 'campo';
             const user = auth.currentUser;
             const activeEmail = user ? user.email : localStorage.getItem('userEmail');
-            const canalColaborador = (userRole === 'admin') ? colaboradorSelecionado : activeEmail;
+            const targetEmail = (userRole === 'admin') ? colaboradorSelecionado : activeEmail;
 
-            if (canalColaborador && confirm(`Deseja apagar o histórico de mensagens com ${canalColaborador}?`)) {
-                const canalSanitized = canalColaborador.replace(/\./g, '_');
-                remove(ref(database, `chat_mensagens/${canalSanitized}`));
+            if (targetEmail && confirm(`Deseja apagar o histórico de chat com ${targetEmail}?`)) {
+                const targetSanitized = targetEmail.replace(/\./g, '_');
+                remove(ref(database, `chat_mensagens/${targetSanitized}`));
             }
         });
     }
 
-    // 4. AUTENTICAÇÃO, CONTROLE DE PRIVACIDADE E ABAS
+    // 4. AUTENTICAÇÃO E RENDERIZAÇÃO DAS ABAS SOMENTE PARA LOGADOS
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -141,75 +140,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const tabsContainer = document.getElementById('tabsContainer');
 
-            // 🎯 ADMINISTRADOR: Lista TODOS os colaboradores cadastrados (com bolinha online/offline)
             if (userRole === 'admin') {
                 if (tabsContainer) tabsContainer.style.display = 'flex';
 
-                onValue(ref(database, 'usuarios_autorizados'), (authSnapshot) => {
-                    const autorizados = authSnapshot.val() || {};
-                    
-                    onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
-                        const statusData = statusSnapshot.val() || {};
-                        if (!tabsContainer) return;
+                // 🎯 FILTRO RÍGIDO: Lista APENAS colaboradores ONLINE no Realtime Database
+                onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
+                    const statusData = statusSnapshot.val() || {};
+                    if (!tabsContainer) return;
 
-                        tabsContainer.innerHTML = '';
-                        let colabsEncontrados = [];
+                    tabsContainer.innerHTML = '';
+                    const colabsOnline = [];
 
-                        Object.keys(autorizados).forEach((key) => {
-                            const usuarioAuth = autorizados[key];
+                    Object.keys(statusData).forEach((key) => {
+                        const userStatus = statusData[key];
 
-                            if (usuarioAuth.role !== 'admin') {
-                                const emailFormatado = key.replace(/_/g, '.');
-                                colabsEncontrados.push(emailFormatado);
+                        if (userStatus && userStatus.status === 'online' && userStatus.role !== 'admin' && userStatus.email) {
+                            const emailFormatado = userStatus.email;
+                            colabsOnline.push(emailFormatado);
 
-                                const userStatusInfo = statusData[key] || {};
-                                const isOnline = userStatusInfo.status === 'online';
-
-                                const btn = document.createElement('button');
-                                btn.className = 'tab-btn';
-                                
-                                if (emailFormatado === colaboradorSelecionado) {
-                                    btn.classList.add('active');
-                                }
-
-                                btn.innerHTML = `
-                                    <span class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></span>
-                                    ${emailFormatado}
-                                `;
-
-                                btn.addEventListener('click', () => {
-                                    colaboradorSelecionado = emailFormatado;
-                                    const canvasTitle = document.getElementById('canvasTitle');
-                                    if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
-
-                                    escutarCroquiEmTempoReal(emailFormatado);
-                                    escutarChatPrivado(emailFormatado);
-
-                                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                                    btn.classList.add('active');
-                                });
-
-                                tabsContainer.appendChild(btn);
+                            const btn = document.createElement('button');
+                            btn.className = 'tab-btn';
+                            if (emailFormatado === colaboradorSelecionado) {
+                                btn.classList.add('active');
                             }
-                        });
 
-                        // Seleciona automaticamente o primeiro colaborador da lista se nenhum estiver ativo
-                        if (colabsEncontrados.length > 0 && !colaboradorSelecionado) {
-                            colaboradorSelecionado = colabsEncontrados[0];
-                            const canvasTitle = document.getElementById('canvasTitle');
-                            if (canvasTitle) canvasTitle.innerText = `Croqui: ${colaboradorSelecionado}`;
-                            
-                            escutarCroquiEmTempoReal(colaboradorSelecionado);
-                            escutarChatPrivado(colaboradorSelecionado);
-                            
-                            const primeiroBtn = tabsContainer.querySelector('.tab-btn');
-                            if (primeiroBtn) primeiroBtn.classList.add('active');
+                            btn.innerHTML = `
+                                <span class="status-dot dot-online"></span>
+                                ${emailFormatado}
+                            `;
+
+                            btn.addEventListener('click', () => {
+                                colaboradorSelecionado = emailFormatado;
+                                const canvasTitle = document.getElementById('canvasTitle');
+                                if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
+
+                                escutarCroquiEmTempoReal(emailFormatado);
+                                escutarChatPrivado(emailFormatado);
+
+                                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                                btn.classList.add('active');
+                            });
+
+                            tabsContainer.appendChild(btn);
                         }
                     });
+
+                    // Seleciona o primeiro da lista caso nenhum esteja ativo
+                    if (colabsOnline.length > 0 && (!colaboradorSelecionado || !colabsOnline.includes(colaboradorSelecionado))) {
+                        colaboradorSelecionado = colabsOnline[0];
+                        const canvasTitle = document.getElementById('canvasTitle');
+                        if (canvasTitle) canvasTitle.innerText = `Croqui: ${colaboradorSelecionado}`;
+                        
+                        escutarCroquiEmTempoReal(colaboradorSelecionado);
+                        escutarChatPrivado(colaboradorSelecionado);
+
+                        const primeiroBtn = tabsContainer.querySelector('.tab-btn');
+                        if (primeiroBtn) primeiroBtn.classList.add('active');
+                    }
                 });
 
             } else {
-                // 🔒 COLABORADOR: Esconde totalmente as abas e enxerga apenas o seu próprio chat privado
+                // COLABORADOR: Oculta barra de abas e conecta ao próprio canal
                 if (tabsContainer) tabsContainer.style.display = 'none';
                 
                 colaboradorSelecionado = activeEmail;
@@ -396,16 +387,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 8. ESCUTA PRIVADA DO CHAT (Admin ↔ Colaborador Específico)
-function escutarChatPrivado(emailColaborador) {
-    if (!emailColaborador) return;
-    const canalSanitized = emailColaborador.replace(/\./g, '_');
+// 8. ESCUTA PRIVADA DO CHAT
+function escutarChatPrivado(email) {
+    if (!email) return;
+    const userSanitized = email.replace(/\./g, '_');
 
     if (unsubscribeChatListener) {
         unsubscribeChatListener();
     }
 
-    unsubscribeChatListener = onValue(ref(database, `chat_mensagens/${canalSanitized}`), (snapshot) => {
+    unsubscribeChatListener = onValue(ref(database, `chat_mensagens/${userSanitized}`), (snapshot) => {
         const chatBox = document.getElementById('chatBox');
         if (!chatBox) return;
         chatBox.innerHTML = '';
@@ -422,7 +413,7 @@ function escutarChatPrivado(emailColaborador) {
     });
 }
 
-// 9. ESCUTA EM TEMPO REAL DO CROQUI
+// 9. ESCUTA EM TEMPO REAL DO DESENHO
 function escutarCroquiEmTempoReal(email) {
     if (!email) return;
     const userSanitized = email.replace(/\./g, '_');
