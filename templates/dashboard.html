@@ -8,29 +8,45 @@
     
     <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    html, body { width: 100%; height: 100vh; overflow: hidden; background-color: #f4f7f6; color: #333; display: flex; flex-direction: column; }
+    html, body { width: 100%; height: 100vh; background-color: #f4f7f6; color: #333; display: flex; flex-direction: column; overflow-x: hidden; }
 
     /* Barra Superior Dark */
-    .bar { background-color: #343a40; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; width: 100%; height: 45px; flex-shrink: 0; }
-    .bar h2 { font-size: 15px; font-weight: 600; }
+    .bar { background-color: #343a40; color: white; padding: 8px 15px; display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 45px; flex-shrink: 0; }
+    .bar h2 { font-size: 14px; font-weight: 600; }
     .user-info { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 
     /* Barra de Abas dos Colaboradores */
-    .tabs-container { display: flex; background: #e9ecef; padding: 5px 15px; gap: 8px; border-bottom: 1px solid #ccc; width: 100%; height: 42px; align-items: center; overflow-x: auto; flex-shrink: 0; }
+    .tabs-container { display: flex; background: #e9ecef; padding: 5px 15px; gap: 8px; border-bottom: 1px solid #ccc; width: 100%; min-height: 42px; align-items: center; overflow-x: auto; flex-shrink: 0; }
     .tab-btn { padding: 5px 12px; background: #ffffff; border: 1px solid #007bff; color: #007bff; border-radius: 4px; cursor: pointer; font-weight: bold; white-space: nowrap; font-size: 11px; display: flex; align-items: center; gap: 6px; }
     .tab-btn.active, .tab-btn:hover { background: #007bff; color: #ffffff; }
     .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .dot-online { background-color: #28a745; }
     .dot-offline { background-color: #dc3545; }
 
-    /* Grid Principal */
-    .workspace-container { display: grid; grid-template-columns: 240px 1fr 200px; gap: 10px; padding: 10px; height: calc(100vh - 87px); width: 100%; }
-    .sidebar-left, .sidebar-right, .editor-area-center { background: #ffffff; padding: 10px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+    /* Grid Principal para Desktop */
+    .workspace-container { 
+        display: grid; 
+        grid-template-columns: 240px 1fr 180px; 
+        gap: 10px; 
+        padding: 10px; 
+        flex: 1; 
+        width: 100%; 
+        overflow: hidden; 
+    }
+    .sidebar-left, .sidebar-right, .editor-area-center { 
+        background: #ffffff; 
+        padding: 10px; 
+        border-radius: 6px; 
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08); 
+        display: flex; 
+        flex-direction: column; 
+        overflow: hidden; 
+    }
 
     /* Chat */
     .sidebar-left h3, .sidebar-right h3 { font-size: 13px; margin-bottom: 6px; color: #007bff; border-bottom: 2px solid #e9ecef; padding-bottom: 3px; }
     .chat-header { display: flex; justify-content: space-between; align-items: center; }
-    .chat-box { flex: 1; border: 1px solid #e0e0e0; border-radius: 4px; padding: 6px; overflow-y: auto; background: #fafafa; margin: 6px 0; }
+    .chat-box { flex: 1; min-height: 120px; border: 1px solid #e0e0e0; border-radius: 4px; padding: 6px; overflow-y: auto; background: #fafafa; margin: 6px 0; }
     .chat-box p { margin-bottom: 4px; font-size: 11px; word-break: break-word; }
     .chat-input { display: flex; gap: 4px; height: 30px; }
     .chat-input input { flex: 1; padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 11px; }
@@ -39,18 +55,18 @@
     /* Área Central do Canvas */
     .editor-area-center { align-items: center; justify-content: space-between; }
     .editor-area-center h3 { font-size: 14px; color: #333; margin-bottom: 4px; }
-    .canvas-wrapper { border: 2px solid #007bff; border-radius: 4px; background: #ffffff; width: 100%; flex: 1; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+    .canvas-wrapper { border: 2px solid #007bff; border-radius: 4px; background: #ffffff; width: 100%; flex: 1; display: flex; justify-content: center; align-items: center; overflow: hidden; min-height: 300px; }
     canvas { display: block; cursor: crosshair; background-color: #ffffff; max-width: 100%; max-height: 100%; object-fit: contain; }
 
-    .actions { display: flex; gap: 8px; justify-content: center; margin-top: 6px; width: 100%; flex-wrap: wrap; }
-    .actions button, .action-btn { padding: 6px 12px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; border: none; }
+    .actions { display: flex; gap: 6px; justify-content: center; margin-top: 6px; width: 100%; flex-wrap: wrap; }
+    .actions button, .action-btn { padding: 6px 10px; font-size: 11px; font-weight: bold; border-radius: 4px; cursor: pointer; border: none; }
     .btn-success { background-color: #28a745; color: white; }
     .btn-danger { background-color: #dc3545; color: white; }
     .btn-info { background-color: #17a2b8; color: white; }
     .action-btn { background-color: #6c757d; color: white; }
 
     /* Ferramentas */
-    .vertical-toolbar { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+    .vertical-toolbar { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; }
     .tool-btn { display: flex; align-items: center; gap: 6px; padding: 5px 8px; background-color: #ffffff; border: 1px solid #d0d0d0; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500; width: 100%; }
     .tool-btn.active { background-color: #007bff; color: #ffffff; border-color: #0056b3; }
     .divider { border: 0; border-top: 1px solid #e0e0e0; margin: 6px 0; }
@@ -58,7 +74,7 @@
     input[type="color"] { width: 100%; height: 26px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
     input[type="range"] { width: 100%; }
 
-    /* MODAL DE CARREGAR CROQUI */
+    /* MODAL DE CARREGAR CROQUIS */
     .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000; }
     .modal-overlay.active { display: flex; }
     .modal-card { background: white; width: 500px; max-width: 90%; max-height: 80vh; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
@@ -70,6 +86,30 @@
     .croqui-item { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
     .croqui-item:hover { background-color: #f8f9fa; }
     .croqui-item button { padding: 4px 8px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px; }
+
+    /* 📱 ADAPTAÇÃO RESPONSIVA PARA DISPOSITIVOS MÓVEIS E PAISAGEM */
+    @media (max-width: 900px) {
+        html, body { height: auto; overflow-y: auto; }
+        .workspace-container { 
+            display: flex; 
+            flex-direction: column; 
+            height: auto; 
+            overflow: visible; 
+        }
+        
+        /* Layout Superior: Canvas (esquerda) + Ferramentas (direita) */
+        .editor-area-center { order: 1; width: 100%; }
+        .sidebar-right { order: 2; width: 100%; }
+        
+        /* Chat fica na parte inferior */
+        .sidebar-left { order: 3; width: 100%; margin-top: 10px; }
+
+        .vertical-toolbar {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 6px;
+        }
+    }
     </style>
 </head>
 <body>
@@ -87,7 +127,7 @@
 
     <!-- Workspace -->
     <div class="workspace-container">
-        <!-- Esquerda: Chat -->
+        <!-- Esquerda no PC / Inferior no Telemóvel: Chat -->
         <div class="sidebar-left">
             <div class="chat-header">
                 <h3>Chat em Tempo Real</h3>
@@ -153,8 +193,9 @@
         </div>
     </div>
 
-    <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}?v=8"></script>
-    <script type="module" src="{{ url_for('static', filename='login.js') }}?v=8"></script>
-    <script type="module" src="{{ url_for('static', filename='dashboard.js') }}?v=8"></script>
+    <!-- Scripts do sistema mantidos 100% originais com controle de cache -->
+    <script type="module" src="{{ url_for('static', filename='firebase-config.js') }}?v=12"></script>
+    <script type="module" src="{{ url_for('static', filename='login.js') }}?v=12"></script>
+    <script type="module" src="{{ url_for('static', filename='dashboard.js') }}?v=12"></script>
 </body>
 </html>
