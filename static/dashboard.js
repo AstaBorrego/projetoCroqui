@@ -7,6 +7,7 @@ let colaboradorSelecionado = null;
 let croquiEngine = null;
 let todosCroquisCache = {};
 let unsubscribeCroquiListener = null;
+let unsubscribeChatListener = null;
 
 function getFormattedDate() {
     const now = new Date();
@@ -16,7 +17,7 @@ function getFormattedDate() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // 1. ENGINE DO CANVAS (Transmissão Bidirecional em Tempo Real)
+    // 1. ENGINE DO CANVAS (Sincronização Bidirecional em Tempo Real)
     try {
         croquiEngine = new CroquiEngine('croquiCanvas', (dataUrl) => {
             const user = auth.currentUser;
@@ -55,59 +56,54 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnUndo = document.getElementById('btnUndo');
     if (btnUndo) btnUndo.addEventListener('click', () => croquiEngine && croquiEngine.undo());
 
-    // 3. CHAT EM TEMPO REAL (Envio exclusivo pelo Administrador)
+    // 3. ENVIO DE MENSAGENS NO CHAT PRIVADO
     const chatForm = document.getElementById('chatForm');
     if (chatForm) {
         chatForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const userRole = localStorage.getItem('userRole') || 'campo';
-            
-            if (userRole !== 'admin') {
-                alert("O envio de mensagens é restrito ao Administrador.");
-                return;
-            }
-
             const input = document.getElementById('chatInput');
             if (!input || !input.value.trim()) return;
 
             const user = auth.currentUser;
-            const userEmail = user ? user.email : localStorage.getItem('userEmail');
+            const activeEmail = user ? user.email : localStorage.getItem('userEmail');
+            const userRole = localStorage.getItem('userRole') || 'campo';
 
-            if (userEmail) {
-                push(ref(database, 'chat_mensagens'), {
-                    usuario: userEmail,
-                    texto: input.value.trim(),
-                    data: new Date().toISOString()
-                }).then(() => { input.value = ''; });
+            // O canal privado do chat é sempre definido pelo e-mail do colaborador
+            const canalColaborador = (userRole === 'admin') ? colaboradorSelecionado : activeEmail;
+
+            if (!canalColaborador) {
+                alert("Selecione um colaborador para enviar mensagem.");
+                return;
             }
+
+            const canalSanitized = canalColaborador.replace(/\./g, '_');
+
+            push(ref(database, `chat_mensagens/${canalSanitized}`), {
+                usuario: activeEmail,
+                texto: input.value.trim(),
+                data: new Date().toISOString()
+            }).then(() => { 
+                input.value = ''; 
+            }).catch(err => console.error("Erro ao enviar mensagem:", err));
         });
     }
 
     const btnClearChat = document.getElementById('btnClearChat');
     if (btnClearChat) {
         btnClearChat.addEventListener('click', () => {
-            if (confirm("Deseja apagar todo o histórico de mensagens do chat?")) {
-                remove(ref(database, 'chat_mensagens'));
+            const userRole = localStorage.getItem('userRole') || 'campo';
+            const user = auth.currentUser;
+            const activeEmail = user ? user.email : localStorage.getItem('userEmail');
+            const canalColaborador = (userRole === 'admin') ? colaboradorSelecionado : activeEmail;
+
+            if (canalColaborador && confirm(`Deseja apagar o histórico de mensagens com ${canalColaborador}?`)) {
+                const canalSanitized = canalColaborador.replace(/\./g, '_');
+                remove(ref(database, `chat_mensagens/${canalSanitized}`));
             }
         });
     }
 
-    onValue(ref(database, 'chat_mensagens'), (snapshot) => {
-        const chatBox = document.getElementById('chatBox');
-        if (!chatBox) return;
-        chatBox.innerHTML = '';
-        const mensagens = snapshot.val();
-        if (mensagens) {
-            Object.values(mensagens).forEach((msg) => {
-                const p = document.createElement('p');
-                p.innerHTML = `<strong>${msg.usuario}:</strong> ${msg.texto}`;
-                chatBox.appendChild(p);
-            });
-            chatBox.scrollTop = chatBox.scrollHeight;
-        }
-    });
-
-    // 4. AUTENTICAÇÃO E EXIBIÇÃO GARANTIDA DE ABAS DOS COLABORADORES
+    // 4. AUTENTICAÇÃO, CONTROLE DE PRIVACIDADE E ABAS
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -122,25 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 headerTitle.innerText = (userRole === 'admin') 
                     ? "Painel de Croqui (Administrador)" 
                     : "Painel de Croqui (Colaborador em Campo)";
-            }
-
-            // Desabilita o envio de chat para colaboradores
-            const chatInput = document.getElementById('chatInput');
-            const chatSubmitBtn = chatForm ? chatForm.querySelector('button[type="submit"]') : null;
-            if (userRole !== 'admin') {
-                if (btnClearChat) btnClearChat.style.display = 'none';
-                if (chatInput) {
-                    chatInput.disabled = true;
-                    chatInput.placeholder = "Apenas o Admin envia mensagens...";
-                }
-                if (chatSubmitBtn) chatSubmitBtn.disabled = true;
-            } else {
-                if (btnClearChat) btnClearChat.style.display = 'inline-block';
-                if (chatInput) {
-                    chatInput.disabled = false;
-                    chatInput.placeholder = "Sua mensagem...";
-                }
-                if (chatSubmitBtn) chatSubmitBtn.disabled = false;
             }
 
             const mySanitizedEmail = activeEmail.replace(/\./g, '_');
@@ -158,9 +135,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 ultimoAcesso: new Date().toISOString()
             });
 
+            if (btnClearChat) {
+                btnClearChat.style.display = (userRole === 'admin') ? 'inline-block' : 'none';
+            }
+
             const tabsContainer = document.getElementById('tabsContainer');
 
-            // 🎯 ADMINISTRADOR: Lista TODOS os colaboradores cadastrados em 'usuarios_autorizados'
+            // 🎯 ADMINISTRADOR: Lista TODOS os colaboradores cadastrados (com bolinha online/offline)
             if (userRole === 'admin') {
                 if (tabsContainer) tabsContainer.style.display = 'flex';
 
@@ -202,6 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                     if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
 
                                     escutarCroquiEmTempoReal(emailFormatado);
+                                    escutarChatPrivado(emailFormatado);
+
                                     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
                                     btn.classList.add('active');
                                 });
@@ -215,7 +198,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             colaboradorSelecionado = colabsEncontrados[0];
                             const canvasTitle = document.getElementById('canvasTitle');
                             if (canvasTitle) canvasTitle.innerText = `Croqui: ${colaboradorSelecionado}`;
+                            
                             escutarCroquiEmTempoReal(colaboradorSelecionado);
+                            escutarChatPrivado(colaboradorSelecionado);
                             
                             const primeiroBtn = tabsContainer.querySelector('.tab-btn');
                             if (primeiroBtn) primeiroBtn.classList.add('active');
@@ -224,7 +209,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
             } else {
-                // COLABORADOR: Oculta a barra de abas e abre o seu próprio workspace
+                // 🔒 COLABORADOR: Esconde totalmente as abas e enxerga apenas o seu próprio chat privado
                 if (tabsContainer) tabsContainer.style.display = 'none';
                 
                 colaboradorSelecionado = activeEmail;
@@ -232,6 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (canvasTitle) canvasTitle.innerText = `Croqui: ${activeEmail}`;
 
                 escutarCroquiEmTempoReal(activeEmail);
+                escutarChatPrivado(activeEmail);
             }
 
         } else {
@@ -410,8 +396,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// 8. ESCUTA EM TEMPO REAL DO CROQUI
+// 8. ESCUTA PRIVADA DO CHAT (Admin ↔ Colaborador Específico)
+function escutarChatPrivado(emailColaborador) {
+    if (!emailColaborador) return;
+    const canalSanitized = emailColaborador.replace(/\./g, '_');
+
+    if (unsubscribeChatListener) {
+        unsubscribeChatListener();
+    }
+
+    unsubscribeChatListener = onValue(ref(database, `chat_mensagens/${canalSanitized}`), (snapshot) => {
+        const chatBox = document.getElementById('chatBox');
+        if (!chatBox) return;
+        chatBox.innerHTML = '';
+        const mensagens = snapshot.val();
+
+        if (mensagens) {
+            Object.values(mensagens).forEach((msg) => {
+                const p = document.createElement('p');
+                p.innerHTML = `<strong>${msg.usuario}:</strong> ${msg.texto}`;
+                chatBox.appendChild(p);
+            });
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    });
+}
+
+// 9. ESCUTA EM TEMPO REAL DO CROQUI
 function escutarCroquiEmTempoReal(email) {
+    if (!email) return;
     const userSanitized = email.replace(/\./g, '_');
     
     if (unsubscribeCroquiListener) {
