@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 4. MANTÉM TODAS AS ABAS DE COLABORADORES VISÍVEIS
+    // 4. LÓGICA DIFERENCIADA ENTRE ADMINISTRADOR E COLABORADOR
     onAuthStateChanged(auth, async (user) => {
         const savedEmail = localStorage.getItem('userEmail');
         const userRole = localStorage.getItem('userRole') || 'campo';
@@ -121,52 +121,64 @@ document.addEventListener('DOMContentLoaded', () => {
                 btnClearChat.style.display = (userRole === 'admin') ? 'inline-block' : 'none';
             }
 
-            // MANTÉM OS BOTÕES FIXOS BUSCANDO DE 'usuarios_autorizados'
-            onValue(ref(database, 'usuarios_autorizados'), (authSnapshot) => {
-                const autorizados = authSnapshot.val() || {};
-                
-                onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
-                    const statusData = statusSnapshot.val() || {};
-                    const tabsContainer = document.getElementById('tabsContainer');
-                    if (!tabsContainer) return;
+            const tabsContainer = document.getElementById('tabsContainer');
 
-                    tabsContainer.innerHTML = '';
+            // 🚀 REGRA DE ABAS CONFORME O PERFIL:
+            if (userRole === 'admin') {
+                // SE FOR ADMIN: Mostra a barra de abas e carrega TODOS os colaboradores
+                if (tabsContainer) tabsContainer.style.display = 'flex';
 
-                    Object.keys(autorizados).forEach((key) => {
-                        const usuarioAuth = autorizados[key];
-                        if (usuarioAuth.role !== 'admin') {
-                            const emailFormatado = key.replace(/_/g, '.');
-                            const userStatusInfo = statusData[key] || {};
-                            const isOnline = userStatusInfo.status === 'online';
+                onValue(ref(database, 'usuarios_autorizados'), (authSnapshot) => {
+                    const autorizados = authSnapshot.val() || {};
+                    
+                    onValue(ref(database, 'status_usuarios'), (statusSnapshot) => {
+                        const statusData = statusSnapshot.val() || {};
+                        if (!tabsContainer) return;
 
-                            const btn = document.createElement('button');
-                            btn.className = 'tab-btn';
-                            if (emailFormatado === colaboradorSelecionado) {
-                                btn.classList.add('active');
+                        tabsContainer.innerHTML = '';
+
+                        Object.keys(autorizados).forEach((key) => {
+                            const usuarioAuth = autorizados[key];
+                            if (usuarioAuth.role !== 'admin') {
+                                const emailFormatado = key.replace(/_/g, '.');
+                                const userStatusInfo = statusData[key] || {};
+                                const isOnline = userStatusInfo.status === 'online';
+
+                                const btn = document.createElement('button');
+                                btn.className = 'tab-btn';
+                                if (emailFormatado === colaboradorSelecionado) {
+                                    btn.classList.add('active');
+                                }
+
+                                btn.innerHTML = `
+                                    <span class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></span>
+                                    ${emailFormatado}
+                                `;
+
+                                btn.addEventListener('click', () => {
+                                    colaboradorSelecionado = emailFormatado;
+                                    const canvasTitle = document.getElementById('canvasTitle');
+                                    if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
+
+                                    carregarCroquiColaborador(emailFormatado);
+                                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                                    btn.classList.add('active');
+                                });
+
+                                tabsContainer.appendChild(btn);
                             }
-
-                            btn.innerHTML = `
-                                <span class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></span>
-                                ${emailFormatado}
-                            `;
-
-                            btn.addEventListener('click', () => {
-                                colaboradorSelecionado = emailFormatado;
-                                const canvasTitle = document.getElementById('canvasTitle');
-                                if (canvasTitle) canvasTitle.innerText = `Croqui: ${emailFormatado}`;
-
-                                carregarCroquiColaborador(emailFormatado);
-                                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                                btn.classList.add('active');
-                            });
-
-                            tabsContainer.appendChild(btn);
-                        }
+                        });
                     });
                 });
-            });
 
-            if (userRole !== 'admin') {
+            } else {
+                // 🚀 SE FOR COLABORADOR: Oculta a barra de abas inteira e abre só o seu próprio croqui
+                if (tabsContainer) tabsContainer.style.display = 'none';
+                
+                colaboradorSelecionado = activeEmail;
+                const canvasTitle = document.getElementById('canvasTitle');
+                if (canvasTitle) canvasTitle.innerText = `Croqui: ${activeEmail}`;
+
                 carregarCroquiColaborador(activeEmail);
             }
 
@@ -216,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 6. NOVO: MODAL PARA BUSCAR E CARREGAR CROQUIS
+    // 6. MODAL DE CARREGAR CROQUIS COM BUSCA
     const modalLoad = document.getElementById('modalLoad');
     const btnLoadModal = document.getElementById('btnLoadModal');
     const btnCloseModal = document.getElementById('btnCloseModal');
